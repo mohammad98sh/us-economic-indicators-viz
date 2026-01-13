@@ -58,45 +58,31 @@ function renderTable(headers, rows, limit = 20) {
   container.appendChild(table);
 }
 
-function buildTimeSpec(data) {
+/* ---------- VEGA SPECS (simplified, robust) ---------- */
+
+function lineSpec({data, yField, yTitle}) {
+  return {
+    $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+    width: "container",
+    height: 260,
+    data: { values: data },
+    mark: { type: "line" },
+    encoding: {
+      x: { field: "date", type: "temporal", title: "Date" },
+      y: { field: yField, type: "quantitative", title: yTitle },
+      tooltip: [
+        { field: "date", type: "temporal" },
+        { field: yField, type: "quantitative", title: yTitle }
+      ]
+    }
+  };
+}
+
+function scatterSpec(data) {
   return {
     $schema: "https://vega.github.io/schema/vega-lite/v5.json",
     width: "container",
     height: 320,
-    data: { values: data },
-    layer: [
-      {
-        mark: { type: "line" },
-        encoding: {
-          x: { field: "date", type: "temporal", title: "Date" },
-          y: { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)" },
-          tooltip: [
-            { field: "date", type: "temporal" },
-            { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)" }
-          ]
-        }
-      },
-      {
-        mark: { type: "line", strokeDash: [6,4] },
-        encoding: {
-          x: { field: "date", type: "temporal" },
-          y: { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)" },
-          tooltip: [
-            { field: "date", type: "temporal" },
-            { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)" }
-          ]
-        }
-      }
-    ],
-    resolve: { scale: { y: "independent" } }
-  };
-}
-
-function buildScatterSpec(data) {
-  return {
-    $schema: "https://vega.github.io/schema/vega-lite/v5.json",
-    width: "container",
-    height: 340,
     data: { values: data },
     transform: [{ calculate: "year(datum.date)", as: "year" }],
     mark: { type: "point", filled: true, opacity: 0.65 },
@@ -114,51 +100,38 @@ function buildScatterSpec(data) {
   };
 }
 
-function buildGDPSpec(data) {
+function vconcatSpec(title, specs) {
   return {
     $schema: "https://vega.github.io/schema/vega-lite/v5.json",
-    width: "container",
-    height: 320,
-    data: { values: data },
-    layer: [
-      {
-        mark: { type: "line" },
-        encoding: {
-          x: { field: "date", type: "temporal", title: "Date" },
-          y: { field: "gdp_billions", type: "quantitative", title: "GDP (billions)" },
-          tooltip: [
-            { field: "date", type: "temporal" },
-            { field: "gdp_billions", type: "quantitative", title: "GDP (billions)" }
-          ]
-        }
-      },
-      {
-        mark: { type: "line", strokeDash: [6,4] },
-        encoding: {
-          x: { field: "date", type: "temporal" },
-          y: { field: "gdp_growth_yoy", type: "quantitative", title: "GDP growth YoY (%)" },
-          tooltip: [
-            { field: "date", type: "temporal" },
-            { field: "gdp_growth_yoy", type: "quantitative", title: "GDP YoY (%)" }
-          ]
-        }
-      }
-    ],
-    resolve: { scale: { y: "independent" } }
+    title: { text: title, anchor: "start", fontSize: 14 },
+    vconcat: specs,
+    spacing: 12
   };
+}
+
+async function safeEmbed(selector, spec) {
+  try {
+    await vegaEmbed(selector, spec, { actions: false, renderer: "svg" });
+  } catch (e) {
+    console.error(e);
+    debug(`Vega error on ${selector}: ${e.message}`);
+  }
 }
 
 async function main() {
   debug("Loading dataset…");
 
+  // اگر Vega-Embed لود نشده باشه
+  if (typeof vegaEmbed === "undefined") {
+    throw new Error("vegaEmbed is undefined. Check Vega scripts in index.html.");
+  }
+
   const path = "data/us_economic_indicators.csv";
   const csvText = await loadCSV(path);
   const { headers, rows } = parseCSV(csvText);
 
-  // preview table
   renderTable(headers, rows, 20);
 
-  // typed data
   const data = rows.map(r => ({
     date: r.date,
     gdp_billions: toNumber(r.gdp_billions),
@@ -166,14 +139,31 @@ async function main() {
     unemployment_rate: toNumber(r.unemployment_rate),
     inflation_yoy: toNumber(r.inflation_yoy),
   })).filter(d =>
+    d.date &&
     d.gdp_billions !== null &&
+    d.gdp_growth_yoy !== null &&
     d.unemployment_rate !== null &&
     d.inflation_yoy !== null
   );
 
-  await vegaEmbed("#chartTime", buildTimeSpec(data), { actions: false });
-  await vegaEmbed("#chartScatter", buildScatterSpec(data), { actions: false });
-  await vegaEmbed("#chartGDP", buildGDPSpec(data), { actions: false });
+  // --- Time trends: two separate charts (robust)
+  const timeSpec = vconcatSpec("Time trends", [
+    lineSpec({ data, yField: "unemployment_rate", yTitle: "Unemployment (%)" }),
+    lineSpec({ data, yField: "inflation_yoy", yTitle: "Inflation YoY (%)" })
+  ]);
+
+  // --- Scatter
+  const scat = scatterSpec(data);
+
+  // --- GDP trend: two separate charts
+  const gdpSpec = vconcatSpec("GDP trend", [
+    lineSpec({ data, yField: "gdp_billions", yTitle: "GDP (billions)" }),
+    lineSpec({ data, yField: "gdp_growth_yoy", yTitle: "GDP growth YoY (%)" })
+  ]);
+
+  await safeEmbed("#chartTime", timeSpec);
+  await safeEmbed("#chartScatter", scat);
+  await safeEmbed("#chartGDP", gdpSpec);
 
   debug(`OK — loaded ${data.length} quarterly rows.`);
 }
