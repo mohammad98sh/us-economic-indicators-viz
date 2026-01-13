@@ -1,3 +1,10 @@
+function debug(msg){
+  const el = document.getElementById("debugMsg");
+  if (el) el.textContent = msg;
+}
+window.addEventListener("error", (e) => debug("JS ERROR: " + e.message));
+window.addEventListener("unhandledrejection", (e) => debug("PROMISE ERROR: " + (e.reason?.message || e.reason)));
+
 async function loadCSV(path) {
   const res = await fetch(path, { cache: "no-store" });
   if (!res.ok) throw new Error(`CSV not found: ${path} (HTTP ${res.status})`);
@@ -7,36 +14,18 @@ async function loadCSV(path) {
 function parseCSV(csvText) {
   const lines = csvText.split("\n").map(l => l.trim()).filter(Boolean);
   const headers = lines[0].split(",").map(h => h.trim());
-
   const rows = lines.slice(1).map(line => {
-    // simple CSV parser (works if no commas inside values)
     const values = line.split(",").map(v => v.trim());
     const obj = {};
     headers.forEach((h, i) => obj[h] = values[i]);
     return obj;
   });
-
   return { headers, rows };
 }
 
-function fillSelect(selectEl, headers, preferred = []) {
-  selectEl.innerHTML = "";
-  headers.forEach(h => {
-    const opt = document.createElement("option");
-    opt.value = h;
-    opt.textContent = h;
-    selectEl.appendChild(opt);
-  });
-
-  // pick a default if possible
-  for (const p of preferred) {
-    const found = headers.find(h => h.toLowerCase() === p.toLowerCase());
-    if (found) {
-      selectEl.value = found;
-      return;
-    }
-  }
-  selectEl.selectedIndex = 0;
+function toNumber(x) {
+  const n = Number(String(x).replace("%","").replace(" ", ""));
+  return Number.isFinite(n) ? n : null;
 }
 
 function renderTable(headers, rows, limit = 20) {
@@ -69,40 +58,32 @@ function renderTable(headers, rows, limit = 20) {
   container.appendChild(table);
 }
 
-function toNumber(x) {
-  const n = Number(String(x).replace("%","").replace(" ", ""));
-  return Number.isFinite(n) ? n : null;
-}
-
-function buildTimeSpec(data, colDate, colUnemp, colInfl) {
+function buildTimeSpec(data) {
   return {
     $schema: "https://vega.github.io/schema/vega-lite/v5.json",
     width: "container",
     height: 320,
     data: { values: data },
-    transform: [
-      { filter: `isValid(datum.${colDate}) && isValid(datum.${colUnemp}) && isValid(datum.${colInfl})` }
-    ],
     layer: [
       {
         mark: { type: "line" },
         encoding: {
-          x: { field: colDate, type: "temporal", title: "Date" },
-          y: { field: colUnemp, type: "quantitative", title: "Unemployment" },
+          x: { field: "date", type: "temporal", title: "Date" },
+          y: { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)" },
           tooltip: [
-            { field: colDate, type: "temporal" },
-            { field: colUnemp, type: "quantitative" }
+            { field: "date", type: "temporal" },
+            { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)" }
           ]
         }
       },
       {
         mark: { type: "line", strokeDash: [6,4] },
         encoding: {
-          x: { field: colDate, type: "temporal" },
-          y: { field: colInfl, type: "quantitative", title: "Inflation" },
+          x: { field: "date", type: "temporal" },
+          y: { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)" },
           tooltip: [
-            { field: colDate, type: "temporal" },
-            { field: colInfl, type: "quantitative" }
+            { field: "date", type: "temporal" },
+            { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)" }
           ]
         }
       }
@@ -111,82 +92,95 @@ function buildTimeSpec(data, colDate, colUnemp, colInfl) {
   };
 }
 
-function buildScatterSpec(data, colDate, colUnemp, colInfl) {
+function buildScatterSpec(data) {
   return {
     $schema: "https://vega.github.io/schema/vega-lite/v5.json",
     width: "container",
     height: 340,
     data: { values: data },
-    transform: [
-      { filter: `isValid(datum.${colDate}) && isValid(datum.${colUnemp}) && isValid(datum.${colInfl})` },
-      { calculate: "year(datum." + colDate + ")", as: "year" }
-    ],
+    transform: [{ calculate: "year(datum.date)", as: "year" }],
     mark: { type: "point", filled: true, opacity: 0.65 },
     encoding: {
-      x: { field: colUnemp, type: "quantitative", title: "Unemployment" },
-      y: { field: colInfl, type: "quantitative", title: "Inflation" },
+      x: { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)" },
+      y: { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)" },
       color: { field: "year", type: "quantitative", title: "Year" },
       tooltip: [
-        { field: colDate, type: "temporal" },
-        { field: colUnemp, type: "quantitative" },
-        { field: colInfl, type: "quantitative" }
+        { field: "date", type: "temporal" },
+        { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)" },
+        { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)" },
+        { field: "gdp_growth_yoy", type: "quantitative", title: "GDP YoY (%)" }
       ]
     }
   };
 }
 
+function buildGDPSpec(data) {
+  return {
+    $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+    width: "container",
+    height: 320,
+    data: { values: data },
+    layer: [
+      {
+        mark: { type: "line" },
+        encoding: {
+          x: { field: "date", type: "temporal", title: "Date" },
+          y: { field: "gdp_billions", type: "quantitative", title: "GDP (billions)" },
+          tooltip: [
+            { field: "date", type: "temporal" },
+            { field: "gdp_billions", type: "quantitative", title: "GDP (billions)" }
+          ]
+        }
+      },
+      {
+        mark: { type: "line", strokeDash: [6,4] },
+        encoding: {
+          x: { field: "date", type: "temporal" },
+          y: { field: "gdp_growth_yoy", type: "quantitative", title: "GDP growth YoY (%)" },
+          tooltip: [
+            { field: "date", type: "temporal" },
+            { field: "gdp_growth_yoy", type: "quantitative", title: "GDP YoY (%)" }
+          ]
+        }
+      }
+    ],
+    resolve: { scale: { y: "independent" } }
+  };
+}
+
 async function main() {
+  debug("Loading dataset…");
+
   const path = "data/us_economic_indicators.csv";
   const csvText = await loadCSV(path);
   const { headers, rows } = parseCSV(csvText);
 
+  // preview table
   renderTable(headers, rows, 20);
 
-  const selDate = document.getElementById("colDate");
-  const selUnemp = document.getElementById("colUnemp");
-  const selInfl = document.getElementById("colInfl");
+  // typed data
+  const data = rows.map(r => ({
+    date: r.date,
+    gdp_billions: toNumber(r.gdp_billions),
+    gdp_growth_yoy: toNumber(r.gdp_growth_yoy),
+    unemployment_rate: toNumber(r.unemployment_rate),
+    inflation_yoy: toNumber(r.inflation_yoy),
+  })).filter(d =>
+    d.gdp_billions !== null &&
+    d.unemployment_rate !== null &&
+    d.inflation_yoy !== null
+  );
 
-  fillSelect(selDate, headers, ["date", "DATE", "time", "year"]);
-  fillSelect(selUnemp, headers, ["unemployment", "unemployment_rate", "unemp", "unrate"]);
-  fillSelect(selInfl, headers, ["inflation", "inflation_rate", "cpi_inflation", "infl"]);
+  await vegaEmbed("#chartTime", buildTimeSpec(data), { actions: false });
+  await vegaEmbed("#chartScatter", buildScatterSpec(data), { actions: false });
+  await vegaEmbed("#chartGDP", buildGDPSpec(data), { actions: false });
 
-  // Convert to "typed" objects but keep original keys
-  const data = rows.map(r => {
-    const o = { ...r };
-    // try parse date into ISO-ish if it's year only
-    // vega-lite can handle many date strings; we keep as is.
-    return o;
-  });
-
-  async function renderCharts() {
-    const colDate = selDate.value;
-    const colUnemp = selUnemp.value;
-    const colInfl = selInfl.value;
-
-    // Create copies with numeric fields parsed where possible
-    const typed = data.map(d => {
-      const obj = { ...d };
-      obj[colUnemp] = toNumber(d[colUnemp]);
-      obj[colInfl] = toNumber(d[colInfl]);
-      return obj;
-    });
-
-    const timeSpec = buildTimeSpec(typed, colDate, colUnemp, colInfl);
-    const scatterSpec = buildScatterSpec(typed, colDate, colUnemp, colInfl);
-
-    await vegaEmbed("#chartTime", timeSpec, { actions: false });
-    await vegaEmbed("#chartScatter", scatterSpec, { actions: false });
-  }
-
-  selDate.addEventListener("change", renderCharts);
-  selUnemp.addEventListener("change", renderCharts);
-  selInfl.addEventListener("change", renderCharts);
-
-  await renderCharts();
+  debug(`OK — loaded ${data.length} quarterly rows.`);
 }
 
 main().catch(err => {
   console.error(err);
+  debug("ERROR: " + err.message);
   const el = document.getElementById("tableContainer");
-  if (el) el.textContent = `ERROR: ${err.message}`;
+  if (el) el.textContent = "ERROR: " + err.message;
 });
