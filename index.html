@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>US Economic Indicators (1974–2024)</title>
+  <title>US Economy — Inflation, Unemployment, GDP (1975–2024)</title>
+
   <link rel="stylesheet" href="style.css?v=1"/>
 
   <!-- Vega stack (course-friendly) -->
@@ -15,9 +16,9 @@
 <body>
   <header class="hero">
     <div class="hero-inner">
-      <h1>US Economic Indicators (1974–2024)</h1>
+      <h1>US Economy (1975–2024)</h1>
       <p class="subtitle">
-        Minimal data-driven visualization (time series + relationship view), built with Vega-Lite.
+        Inflation (YoY), unemployment rate, and GDP (with YoY growth) — minimal data visualization with Vega-Lite.
       </p>
     </div>
   </header>
@@ -26,33 +27,10 @@
     <section class="card">
       <h2>Overview</h2>
       <p class="note">
-        This project visualizes U.S. economic indicators using a CSV dataset (1974–2024).
-        It focuses on clear, minimal charts and a reproducible pipeline (web + data + visualization library).
+        The dataset is quarterly. Unemployment is the quarterly average (from monthly UNRATE),
+        inflation is YoY change of quarterly-average CPI, and GDP is quarterly level with YoY growth.
+        This project is exploratory and does not claim causality.
       </p>
-    </section>
-
-    <section class="card">
-      <h2>Choose columns (if needed)</h2>
-      <p class="note">
-        If your CSV column names differ, select the right fields below and the charts will update.
-      </p>
-
-      <div class="controls">
-        <label>
-          Date column
-          <select id="colDate"></select>
-        </label>
-
-        <label>
-          Unemployment column
-          <select id="colUnemp"></select>
-        </label>
-
-        <label>
-          Inflation column
-          <select id="colInfl"></select>
-        </label>
-      </div>
     </section>
 
     <section class="card">
@@ -61,9 +39,14 @@
     </section>
 
     <section class="card">
-      <h2>Relationship view</h2>
-      <p class="note">Scatter plot: inflation vs unemployment (each point is a time observation).</p>
+      <h2>Inflation × Unemployment (relationship view)</h2>
+      <p class="note">Each dot is a quarter. Color encodes year.</p>
       <div id="chartScatter" class="viz"></div>
+    </section>
+
+    <section class="card">
+      <h2>GDP trend</h2>
+      <div id="chartGDP" class="viz"></div>
     </section>
 
     <section class="card">
@@ -72,12 +55,13 @@
         Download: <a href="data/us_economic_indicators.csv">us_economic_indicators.csv</a>
       </p>
       <div id="tableContainer" class="table-scroll">Loading preview…</div>
+      <div id="debugMsg" class="note" style="margin-top:10px;"></div>
     </section>
 
     <section class="card">
       <h2>Course alignment</h2>
       <p class="note">
-        Web publication (GitHub Pages) + CSV as data source + Vega-Lite for visual encoding and interaction.
+        Web publication (GitHub Pages) + CSV as data source + Vega-Lite for visual encoding (clear, minimal charts).
       </p>
     </section>
   </main>
