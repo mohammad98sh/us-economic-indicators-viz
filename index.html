@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>US Economic Indicators (1974–2024)</title>
+  <link rel="stylesheet" href="style.css?v=1"/>
+
+  <!-- Vega stack (course-friendly) -->
+  <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+</head>
+
+<body>
+  <header class="hero">
+    <div class="hero-inner">
+      <h1>US Economic Indicators (1974–2024)</h1>
+      <p class="subtitle">
+        Minimal data-driven visualization (time series + relationship view), built with Vega-Lite.
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Overview</h2>
+      <p class="note">
+        This project visualizes U.S. economic indicators using a CSV dataset (1974–2024).
+        It focuses on clear, minimal charts and a reproducible pipeline (web + data + visualization library).
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>Choose columns (if needed)</h2>
+      <p class="note">
+        If your CSV column names differ, select the right fields below and the charts will update.
+      </p>
+
+      <div class="controls">
+        <label>
+          Date column
+          <select id="colDate"></select>
+        </label>
+
+        <label>
+          Unemployment column
+          <select id="colUnemp"></select>
+        </label>
+
+        <label>
+          Inflation column
+          <select id="colInfl"></select>
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Time trends</h2>
+      <div id="chartTime" class="viz"></div>
+    </section>
+
+    <section class="card">
+      <h2>Relationship view</h2>
+      <p class="note">Scatter plot: inflation vs unemployment (each point is a time observation).</p>
+      <div id="chartScatter" class="viz"></div>
+    </section>
+
+    <section class="card">
+      <h2>Dataset preview</h2>
+      <p class="note">
+        Download: <a href="data/us_economic_indicators.csv">us_economic_indicators.csv</a>
+      </p>
+      <div id="tableContainer" class="table-scroll">Loading preview…</div>
+    </section>
+
+    <section class="card">
+      <h2>Course alignment</h2>
+      <p class="note">
+        Web publication (GitHub Pages) + CSV as data source + Vega-Lite for visual encoding and interaction.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p class="footer-note">Université Paris 8 — Web Graphique et Design des Données</p>
+  </footer>
+
+  <script src="script.js?v=1"></script>
+</body>
+</html>
