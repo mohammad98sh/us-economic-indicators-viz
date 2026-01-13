@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>US Economy — Inflation, Unemployment, GDP (1975–2024)</title>
+  <title>US Economy (1975–2024)</title>
 
-  <link rel="stylesheet" href="style.css?v=1"/>
+  <link rel="stylesheet" href="style.css?v=2"/>
 
-  <!-- Vega stack (course-friendly) -->
-  <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+  <!-- Pin versions (more reliable than floating latest) -->
+  <script src="https://cdn.jsdelivr.net/npm/vega@5.25.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.16.3"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.24.0"></script>
 </head>
 
 <body>
@@ -25,51 +25,7 @@
 
   <main>
     <section class="card">
-      <h2>Overview</h2>
-      <p class="note">
-        The dataset is quarterly. Unemployment is the quarterly average (from monthly UNRATE),
-        inflation is YoY change of quarterly-average CPI, and GDP is quarterly level with YoY growth.
-        This project is exploratory and does not claim causality.
-      </p>
+      <h2>Status</h2>
+      <p class="note" id="statusLine">Loading…</p>
+      <p class="note" id="statusLibs"></p>
     </section>
-
-    <section class="card">
-      <h2>Time trends</h2>
-      <div id="chartTime" class="viz"></div>
-    </section>
-
-    <section class="card">
-      <h2>Inflation × Unemployment (relationship view)</h2>
-      <p class="note">Each dot is a quarter. Color encodes year.</p>
-      <div id="chartScatter" class="viz"></div>
-    </section>
-
-    <section class="card">
-      <h2>GDP trend</h2>
-      <div id="chartGDP" class="viz"></div>
-    </section>
-
-    <section class="card">
-      <h2>Dataset preview</h2>
-      <p class="note">
-        Download: <a href="data/us_economic_indicators.csv">us_economic_indicators.csv</a>
-      </p>
-      <div id="tableContainer" class="table-scroll">Loading preview…</div>
-      <div id="debugMsg" class="note" style="margin-top:10px;"></div>
-    </section>
-
-    <section class="card">
-      <h2>Course alignment</h2>
-      <p class="note">
-        Web publication (GitHub Pages) + CSV as data source + Vega-Lite for visual encoding (clear, minimal charts).
-      </p>
-    </section>
-  </main>
-
-  <footer>
-    <p class="footer-note">Université Paris 8 — Web Graphique et Design des Données</p>
-  </footer>
-
-  <script src="script.js?v=1"></script>
-</body>
-</html>
