@@ -19,11 +19,14 @@ main{max-width:920px;margin:28px auto 40px;padding:0 20px}
 .card h2{margin:0 0 8px;font-size:1.25rem}
 .note{margin:8px 0 0;color:var(--muted);font-size:0.95rem}
 a{color:inherit;text-decoration:underline}
+
 .viz{margin-top:10px; min-height: 280px;}
 .table-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:12px}
 table{width:100%;min-width:760px;border-collapse:collapse}
 th,td{border-bottom:1px solid var(--border);padding:10px;text-align:center;white-space:nowrap}
 th{background:#f2f2f2;font-weight:600}
+
 footer{max-width:920px;margin:0 auto 40px;padding:0 20px}
 .footer-note{text-align:center;color:var(--muted);margin:0}
+
 #debugMsg{white-space:pre-wrap;}
