@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>US Economy (1975–2024)</title>
 
-  <link rel="stylesheet" href="style.css?v=2"/>
+  <link rel="stylesheet" href="style.css?v=10"/>
 
-  <!-- Pin versions (more reliable than floating latest) -->
+  <!-- Vega stack (PINNED versions) -->
   <script src="https://cdn.jsdelivr.net/npm/vega@5.25.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.16.3"></script>
   <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.24.0"></script>
@@ -18,7 +18,7 @@
     <div class="hero-inner">
       <h1>US Economy (1975–2024)</h1>
       <p class="subtitle">
-        Inflation (YoY), unemployment rate, and GDP (with YoY growth) — minimal data visualization with Vega-Lite.
+        Inflation (YoY), unemployment rate, and GDP (with YoY growth) — minimal visualization with Vega-Lite.
       </p>
     </div>
   </header>
@@ -28,4 +28,41 @@
       <h2>Status</h2>
       <p class="note" id="statusLine">Loading…</p>
       <p class="note" id="statusLibs"></p>
+      <p class="note" id="debugMsg"></p>
     </section>
+
+    <section class="card">
+      <h2>Sanity test</h2>
+      <p class="note">This chart must appear. If not, Vega libraries are not loading.</p>
+      <div id="chartTest" class="viz"></div>
+    </section>
+
+    <section class="card">
+      <h2>Time trends</h2>
+      <div id="chartTime" class="viz"></div>
+    </section>
+
+    <section class="card">
+      <h2>Inflation × Unemployment</h2>
+      <div id="chartScatter" class="viz"></div>
+    </section>
+
+    <section class="card">
+      <h2>GDP trend</h2>
+      <div id="chartGDP" class="viz"></div>
+    </section>
+
+    <section class="card">
+      <h2>Dataset preview</h2>
+      <p class="note">Download: <a href="data/us_economic_indicators.csv">us_economic_indicators.csv</a></p>
+      <div id="tableContainer" class="table-scroll">Loading preview…</div>
+    </section>
+  </main>
+
+  <footer>
+    <p class="footer-note">Université Paris 8 — Web Graphique et Design des Données</p>
+  </footer>
+
+  <script src="script.js?v=10"></script>
+</body>
+</html>
