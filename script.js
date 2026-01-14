@@ -16,7 +16,10 @@ async function safeEmbed(selector, spec){
     if (typeof vegaEmbed === "undefined") {
       throw new Error("vegaEmbed is undefined. Vega CDN scripts are not loaded.");
     }
-    await vegaEmbed(selector, spec, { actions:false, renderer:"svg" });
+    await vegaEmbed(selector, spec, {
+      actions: false,
+      renderer: "svg"
+    });
   } catch(e){
     console.error(e);
     setText("debugMsg", `Embed error at ${selector}: ${e.message}`);
@@ -76,15 +79,29 @@ function renderTable(headers, rows, limit=20){
   container.appendChild(table);
 }
 
-/* ---------- Vega-Lite specs (robust) ---------- */
-function barTestSpec(){
+/* ---------- Responsive width helper ---------- */
+function chartWidth(){
+  const main = document.querySelector("main");
+  const w = main ? main.clientWidth : window.innerWidth;
+  // کارت‌ها padding دارن، پس کمی کم می‌کنیم
+  return Math.max(320, Math.min(860, w - 60));
+}
+
+/* ---------- Vega-Lite specs (use numeric width, reliable) ---------- */
+function baseSpec(){
   return {
     $schema: "https://vega.github.io/schema/vega-lite/v5.json",
     autosize: { type: "fit", contains: "padding" },
-    width: "container",
-    height: 240,
+    width: chartWidth()
+  };
+}
+
+function barTestSpec(){
+  return {
+    ...baseSpec(),
+    height: 220,
     data: { values: [{k:"A",v:10},{k:"B",v:25},{k:"C",v:15}] },
-    mark: "bar",
+    mark: { type: "bar" },
     encoding: {
       x: { field:"k", type:"nominal", title:"Test" },
       y: { field:"v", type:"quantitative", title:"Value" }
@@ -94,9 +111,7 @@ function barTestSpec(){
 
 function lineSpec(data, yField, yTitle){
   return {
-    $schema: "https://vega.github.io/schema/vega-lite/v5.json",
-    autosize: { type: "fit", contains: "padding" },
-    width: "container",
+    ...baseSpec(),
     height: 240,
     data: { values: data },
     mark: { type: "line" },
@@ -111,20 +126,9 @@ function lineSpec(data, yField, yTitle){
   };
 }
 
-function vconcatSpec(title, specs){
-  return {
-    $schema: "https://vega.github.io/schema/vega-lite/v5.json",
-    title: { text: title, anchor: "start", fontSize: 14 },
-    vconcat: specs,
-    spacing: 12
-  };
-}
-
 function scatterSpec(data){
   return {
-    $schema: "https://vega.github.io/schema/vega-lite/v5.json",
-    autosize: { type: "fit", contains: "padding" },
-    width: "container",
+    ...baseSpec(),
     height: 320,
     data: { values: data },
     transform: [{ calculate: "year(datum.date)", as: "year" }],
@@ -143,42 +147,23 @@ function scatterSpec(data){
   };
 }
 
-async function main(){
-  setText("statusLine", "JS started ✅");
-  setText("debugMsg", "");
-  const { okEmbed } = libsStatus();
+function vconcatSpec(title, specs){
+  return {
+    $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+    title: { text: title, anchor: "start", fontSize: 14 },
+    vconcat: specs,
+    spacing: 14
+  };
+}
 
-  // 1) Sanity chart
-  setText("statusLine", "Step 1/3: sanity test…");
-  if (!okEmbed) {
-    setText("statusLine", "Failed ❌");
-    setText("debugMsg", "Vega libraries are missing. The CDN may be blocked.");
-    return;
-  }
+async function renderAllCharts(data){
+  // پاک کردن کانتینرها برای رندر مجدد درست
+  ["chartTest","chartTime","chartScatter","chartGDP"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = "";
+  });
+
   await safeEmbed("#chartTest", barTestSpec());
-
-  // 2) Load CSV
-  setText("statusLine", "Step 2/3: loading CSV…");
-  const csvPath = "data/us_economic_indicators.csv";
-  const csvText = await loadCSV(csvPath);
-  const { headers, rows } = parseCSV(csvText);
-  renderTable(headers, rows, 20);
-
-  // 3) Render charts
-  setText("statusLine", "Step 3/3: rendering charts…");
-  const data = rows.map(r => ({
-    date: r.date,
-    gdp_billions: toNumber(r.gdp_billions),
-    gdp_growth_yoy: toNumber(r.gdp_growth_yoy),
-    unemployment_rate: toNumber(r.unemployment_rate),
-    inflation_yoy: toNumber(r.inflation_yoy),
-  })).filter(d =>
-    d.date &&
-    d.gdp_billions !== null &&
-    d.gdp_growth_yoy !== null &&
-    d.unemployment_rate !== null &&
-    d.inflation_yoy !== null
-  );
 
   const timeSpec = vconcatSpec("Time trends", [
     lineSpec(data, "unemployment_rate", "Unemployment (%)"),
@@ -193,6 +178,49 @@ async function main(){
   await safeEmbed("#chartTime", timeSpec);
   await safeEmbed("#chartScatter", scatterSpec(data));
   await safeEmbed("#chartGDP", gdpSpec);
+}
+
+async function main(){
+  setText("statusLine", "JS started ✅");
+  setText("debugMsg", "");
+  const { okEmbed } = libsStatus();
+  if (!okEmbed) {
+    setText("statusLine", "Failed ❌");
+    setText("debugMsg", "Vega libraries are missing. CDN may be blocked.");
+    return;
+  }
+
+  setText("statusLine", "Loading CSV…");
+  const csvPath = "data/us_economic_indicators.csv";
+  const csvText = await loadCSV(csvPath);
+  const { headers, rows } = parseCSV(csvText);
+  renderTable(headers, rows, 20);
+
+  const data = rows.map(r => ({
+    date: r.date,
+    gdp_billions: toNumber(r.gdp_billions),
+    gdp_growth_yoy: toNumber(r.gdp_growth_yoy),
+    unemployment_rate: toNumber(r.unemployment_rate),
+    inflation_yoy: toNumber(r.inflation_yoy),
+  })).filter(d =>
+    d.date &&
+    d.gdp_billions !== null &&
+    d.gdp_growth_yoy !== null &&
+    d.unemployment_rate !== null &&
+    d.inflation_yoy !== null
+  );
+
+  await renderAllCharts(data);
+
+  // رندر مجدد بعد از لود کامل صفحه برای اطمینان از ابعاد
+  setTimeout(() => renderAllCharts(data), 300);
+
+  // ریسپانسیو: روی resize دوباره رندر کن
+  let t = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(t);
+    t = setTimeout(() => renderAllCharts(data), 200);
+  });
 
   setText("statusLine", `Done ✅ (${data.length} rows)`);
 }
