@@ -16,10 +16,7 @@ async function safeEmbed(selector, spec){
     if (typeof vegaEmbed === "undefined") {
       throw new Error("vegaEmbed is undefined. Vega CDN scripts are not loaded.");
     }
-    await vegaEmbed(selector, spec, {
-      actions: false,
-      renderer: "svg"
-    });
+    await vegaEmbed(selector, spec, { actions: false, renderer: "svg" });
   } catch(e){
     console.error(e);
     setText("debugMsg", `Embed error at ${selector}: ${e.message}`);
@@ -77,12 +74,14 @@ function renderTable(headers, rows, limit=20){
 
   container.innerHTML = "";
   container.appendChild(table);
+
+  setText("columnsLine", `Columns: ${headers.join(", ")}.`);
 }
 
 function chartWidth(){
   const main = document.querySelector("main");
   const w = main ? main.clientWidth : window.innerWidth;
-  return Math.max(320, Math.min(860, w - 60));
+  return Math.max(320, Math.min(900, w - 60));
 }
 
 function baseSpec(){
@@ -103,17 +102,16 @@ function baseSpec(){
 }
 
 /**
- * Line with crosshair using params (stable in v5):
- * - param "hover" selects nearest point by date
- * - rules drawn only when hover exists
+ * Line + crosshair
+ * IMPORTANT: paramName must be unique per chart to avoid duplicate signals in vconcat.
  */
-function lineSpec(data, yField, yTitle){
+function lineSpec(data, yField, yTitle, paramName){
   return {
     ...baseSpec(),
     height: 240,
     data: { values: data },
     params: [{
-      name: "hover",
+      name: paramName,
       select: {
         type: "point",
         fields: ["date"],
@@ -131,33 +129,33 @@ function lineSpec(data, yField, yTitle){
         }
       },
 
-      // visible point only on hover
+      // point shows on hover
       {
         mark: { type: "point", filled: true, size: 55 },
         encoding: {
           x: { field: "date", type: "temporal" },
           y: { field: yField, type: "quantitative" },
-          opacity: { condition: { param: "hover", value: 1 }, value: 0 }
+          opacity: { condition: { param: paramName, value: 1 }, value: 0 }
         }
       },
 
-      // vertical crosshair
+      // vertical rule (x)
       {
-        transform: [{ filter: { param: "hover" } }],
+        transform: [{ filter: { param: paramName } }],
         mark: { type: "rule" },
         encoding: { x: { field: "date", type: "temporal" } }
       },
 
-      // horizontal crosshair
+      // horizontal rule (y)
       {
-        transform: [{ filter: { param: "hover" } }],
+        transform: [{ filter: { param: paramName } }],
         mark: { type: "rule" },
         encoding: { y: { field: yField, type: "quantitative" } }
       },
 
-      // tooltip on hover
+      // tooltip anchor
       {
-        transform: [{ filter: { param: "hover" } }],
+        transform: [{ filter: { param: paramName } }],
         mark: { type: "point", filled: true, size: 90, opacity: 0.001 },
         encoding: {
           x: { field: "date", type: "temporal" },
@@ -172,17 +170,27 @@ function lineSpec(data, yField, yTitle){
   };
 }
 
+function vconcatSpec(title, specs){
+  return {
+    $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+    title: { text: title, anchor: "start", fontSize: 14 },
+    vconcat: specs,
+    spacing: 14
+  };
+}
+
 /**
- * Scatter with crosshair (params):
+ * Scatter + crosshair
  */
 function scatterSpec(data){
+  const paramName = "hover_scatter";
   return {
     ...baseSpec(),
-    height: 320,
+    height: 330,
     data: { values: data },
     transform: [{ calculate: "year(datum.date)", as: "year" }],
     params: [{
-      name: "hover",
+      name: paramName,
       select: {
         type: "point",
         nearest: true,
@@ -200,33 +208,33 @@ function scatterSpec(data){
         }
       },
 
-      // highlight point
+      // highlight
       {
-        transform: [{ filter: { param: "hover" } }],
-        mark: { type: "point", filled: true, size: 160 },
+        transform: [{ filter: { param: paramName } }],
+        mark: { type: "point", filled: true, size: 170 },
         encoding: {
           x: { field: "unemployment_rate", type: "quantitative" },
           y: { field: "inflation_yoy", type: "quantitative" }
         }
       },
 
-      // vertical line
+      // vertical rule
       {
-        transform: [{ filter: { param: "hover" } }],
+        transform: [{ filter: { param: paramName } }],
         mark: { type: "rule" },
         encoding: { x: { field: "unemployment_rate", type: "quantitative" } }
       },
 
-      // horizontal line
+      // horizontal rule
       {
-        transform: [{ filter: { param: "hover" } }],
+        transform: [{ filter: { param: paramName } }],
         mark: { type: "rule" },
         encoding: { y: { field: "inflation_yoy", type: "quantitative" } }
       },
 
-      // tooltip anchor
+      // tooltip
       {
-        transform: [{ filter: { param: "hover" } }],
+        transform: [{ filter: { param: paramName } }],
         mark: { type: "point", filled: true, size: 120, opacity: 0.001 },
         encoding: {
           x: { field: "unemployment_rate", type: "quantitative" },
@@ -243,29 +251,18 @@ function scatterSpec(data){
   };
 }
 
-function vconcatSpec(title, specs){
-  return {
-    $schema: "https://vega.github.io/schema/vega-lite/v5.json",
-    title: { text: title, anchor: "start", fontSize: 14 },
-    vconcat: specs,
-    spacing: 14
-  };
-}
-
 async function renderAllCharts(data){
-  ["chartTime","chartScatter","chartGDP"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = "";
-  });
+  // Clear debug per render
+  setText("debugMsg", "");
 
   const timeSpec = vconcatSpec("Time trends", [
-    lineSpec(data, "unemployment_rate", "Unemployment (%)"),
-    lineSpec(data, "inflation_yoy", "Inflation YoY (%)"),
+    lineSpec(data, "unemployment_rate", "Unemployment (%)", "hover_unemp"),
+    lineSpec(data, "inflation_yoy", "Inflation YoY (%)", "hover_infl"),
   ]);
 
   const gdpSpec = vconcatSpec("GDP trend", [
-    lineSpec(data, "gdp_billions", "GDP (billions)"),
-    lineSpec(data, "gdp_growth_yoy", "GDP growth YoY (%)"),
+    lineSpec(data, "gdp_billions", "GDP (billions)", "hover_gdp_level"),
+    lineSpec(data, "gdp_growth_yoy", "GDP growth YoY (%)", "hover_gdp_yoy"),
   ]);
 
   await safeEmbed("#chartTime", timeSpec);
@@ -276,6 +273,7 @@ async function renderAllCharts(data){
 async function main(){
   setText("statusLine", "JS started ✅");
   setText("debugMsg", "");
+
   const { okEmbed } = libsStatus();
   if (!okEmbed) {
     setText("statusLine", "Failed ❌");
@@ -284,9 +282,11 @@ async function main(){
   }
 
   setText("statusLine", "Loading CSV…");
+
   const csvPath = "data/us_economic_indicators.csv";
   const csvText = await loadCSV(csvPath);
   const { headers, rows } = parseCSV(csvText);
+
   renderTable(headers, rows, 20);
 
   const data = rows.map(r => ({
@@ -305,11 +305,11 @@ async function main(){
 
   await renderAllCharts(data);
 
-  // re-render on resize
+  // re-render on resize (responsive)
   let t = null;
   window.addEventListener("resize", () => {
     clearTimeout(t);
-    t = setTimeout(() => renderAllCharts(data), 200);
+    t = setTimeout(() => renderAllCharts(data), 220);
   });
 
   setText("statusLine", `Done ✅ (${data.length} rows)`);
