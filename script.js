@@ -16,7 +16,12 @@ async function safeEmbed(selector, spec){
     if (typeof vegaEmbed === "undefined") {
       throw new Error("vegaEmbed is undefined. Vega CDN scripts are not loaded.");
     }
-    await vegaEmbed(selector, spec, { actions: false, renderer: "svg" });
+    await vegaEmbed(selector, spec, {
+      actions: false,
+      renderer: "svg",
+      // important: keep tooltip interactions smooth
+      hover: true
+    });
   } catch(e){
     console.error(e);
     setText("debugMsg", `Embed error at ${selector}: ${e.message}`);
@@ -82,49 +87,183 @@ function chartWidth(){
   return Math.max(320, Math.min(860, w - 60));
 }
 
+/**
+ * Shared visual config (minimal, readable).
+ * Crosshair relies on layer rules; keep view clean.
+ */
 function baseSpec(){
   return {
     $schema: "https://vega.github.io/schema/vega-lite/v5.json",
     autosize: { type: "fit", contains: "padding" },
-    width: chartWidth()
-  };
-}
-
-function lineSpec(data, yField, yTitle){
-  return {
-    ...baseSpec(),
-    height: 240,
-    data: { values: data },
-    mark: { type: "line" },
-    encoding: {
-      x: { field: "date", type: "temporal", title: "Date" },
-      y: { field: yField, type: "quantitative", title: yTitle },
-      tooltip: [
-        { field: "date", type: "temporal" },
-        { field: yField, type: "quantitative", title: yTitle }
-      ]
+    width: chartWidth(),
+    config: {
+      view: { stroke: null },
+      axis: {
+        grid: true,
+        gridOpacity: 0.15,
+        labelColor: "#111827",
+        titleColor: "#111827"
+      }
     }
   };
 }
 
+/**
+ * LINE with TradingView-like crosshair:
+ * - hover selection nearest point (on mousemove)
+ * - vertical rule at hovered date
+ * - horizontal rule at hovered y value
+ * - highlighted point + tooltip
+ */
+function lineSpec(data, yField, yTitle){
+  const hoverSel = {
+    hover: {
+      type: "single",
+      fields: ["date"],
+      nearest: true,
+      on: "mousemove",
+      clear: "mouseout"
+    }
+  };
+
+  return {
+    ...baseSpec(),
+    height: 240,
+    data: { values: data },
+    selection: hoverSel,
+    layer: [
+      // main line
+      {
+        mark: { type: "line" },
+        encoding: {
+          x: { field: "date", type: "temporal", title: "Date" },
+          y: { field: yField, type: "quantitative", title: yTitle }
+        }
+      },
+
+      // points only on hover (nice focus)
+      {
+        mark: { type: "point", filled: true, size: 55 },
+        encoding: {
+          x: { field: "date", type: "temporal" },
+          y: { field: yField, type: "quantitative" },
+          opacity: { condition: { selection: "hover", value: 1 }, value: 0 }
+        }
+      },
+
+      // vertical crosshair
+      {
+        transform: [{ filter: { selection: "hover" } }],
+        mark: { type: "rule" },
+        encoding: {
+          x: { field: "date", type: "temporal" }
+        }
+      },
+
+      // horizontal crosshair
+      {
+        transform: [{ filter: { selection: "hover" } }],
+        mark: { type: "rule" },
+        encoding: {
+          y: { field: yField, type: "quantitative" }
+        }
+      },
+
+      // tooltip anchor (invisible point but shows tooltip precisely)
+      {
+        transform: [{ filter: { selection: "hover" } }],
+        mark: { type: "point", filled: true, size: 85, opacity: 0.001 },
+        encoding: {
+          x: { field: "date", type: "temporal" },
+          y: { field: yField, type: "quantitative" },
+          tooltip: [
+            { field: "date", type: "temporal", title: "Date" },
+            { field: yField, type: "quantitative", title: yTitle }
+          ]
+        }
+      }
+    ]
+  };
+}
+
+/**
+ * SCATTER with crosshair:
+ * - hover selection nearest point
+ * - vertical rule at x, horizontal rule at y
+ * - highlight point + tooltip
+ */
 function scatterSpec(data){
+  const hoverSel = {
+    hover: {
+      type: "single",
+      fields: ["unemployment_rate", "inflation_yoy", "date"],
+      nearest: true,
+      on: "mousemove",
+      clear: "mouseout"
+    }
+  };
+
   return {
     ...baseSpec(),
     height: 320,
     data: { values: data },
     transform: [{ calculate: "year(datum.date)", as: "year" }],
-    mark: { type: "point", filled: true, opacity: 0.65 },
-    encoding: {
-      x: { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)" },
-      y: { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)" },
-      color: { field: "year", type: "quantitative", title: "Year" },
-      tooltip: [
-        { field: "date", type: "temporal" },
-        { field: "unemployment_rate", type: "quantitative" },
-        { field: "inflation_yoy", type: "quantitative" },
-        { field: "gdp_growth_yoy", type: "quantitative", title:"GDP YoY (%)" }
-      ]
-    }
+    selection: hoverSel,
+    layer: [
+      // main points
+      {
+        mark: { type: "point", filled: true, opacity: 0.6 },
+        encoding: {
+          x: { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)" },
+          y: { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)" },
+          color: { field: "year", type: "quantitative", title: "Year" }
+        }
+      },
+
+      // highlight hovered point
+      {
+        transform: [{ filter: { selection: "hover" } }],
+        mark: { type: "point", filled: true, size: 160 },
+        encoding: {
+          x: { field: "unemployment_rate", type: "quantitative" },
+          y: { field: "inflation_yoy", type: "quantitative" }
+        }
+      },
+
+      // vertical crosshair
+      {
+        transform: [{ filter: { selection: "hover" } }],
+        mark: { type: "rule" },
+        encoding: {
+          x: { field: "unemployment_rate", type: "quantitative" }
+        }
+      },
+
+      // horizontal crosshair
+      {
+        transform: [{ filter: { selection: "hover" } }],
+        mark: { type: "rule" },
+        encoding: {
+          y: { field: "inflation_yoy", type: "quantitative" }
+        }
+      },
+
+      // tooltip anchor
+      {
+        transform: [{ filter: { selection: "hover" } }],
+        mark: { type: "point", filled: true, size: 120, opacity: 0.001 },
+        encoding: {
+          x: { field: "unemployment_rate", type: "quantitative" },
+          y: { field: "inflation_yoy", type: "quantitative" },
+          tooltip: [
+            { field: "date", type: "temporal", title: "Date" },
+            { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)" },
+            { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)" },
+            { field: "gdp_growth_yoy", type: "quantitative", title: "GDP YoY (%)" }
+          ]
+        }
+      }
+    ]
   };
 }
 
@@ -190,6 +329,7 @@ async function main(){
 
   await renderAllCharts(data);
 
+  // small delayed re-render for layout stability (GitHub Pages + SVG)
   setTimeout(() => renderAllCharts(data), 300);
 
   let t = null;
