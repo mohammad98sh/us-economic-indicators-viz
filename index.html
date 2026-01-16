@@ -23,7 +23,7 @@
     <div class="chips">
       <span class="chip">Quarterly</span>
       <span class="chip">1975Q1 → 2024Q1</span>
-      <span class="chip">Vega-Lite</span>
+      <span class="chip">Crosshair</span>
     </div>
   </div>
 </header>
@@ -53,8 +53,13 @@
 
   <section class="card">
     <h2>Time trends</h2>
-    <p class="note subtle">Crosshair is enabled: move your cursor over the chart.</p>
-    <div class="viz" id="chartTime"></div>
+    <p class="note subtle">Crosshair enabled: move your cursor over each chart.</p>
+
+    <h3 class="subhead">Unemployment rate</h3>
+    <div class="viz" id="chartUnemp"></div>
+
+    <h3 class="subhead">Inflation (YoY)</h3>
+    <div class="viz" id="chartInfl"></div>
   </section>
 
   <section class="card">
@@ -65,8 +70,13 @@
 
   <section class="card">
     <h2>GDP trend</h2>
-    <p class="note subtle">GDP level (billions) and GDP YoY growth (%). Crosshair enabled.</p>
-    <div class="viz" id="chartGDP"></div>
+    <p class="note subtle">Two separate charts (no vconcat) — avoids signal collisions.</p>
+
+    <h3 class="subhead">GDP level (billions)</h3>
+    <div class="viz" id="chartGDPLevel"></div>
+
+    <h3 class="subhead">GDP growth (YoY %)</h3>
+    <div class="viz" id="chartGDPYoY"></div>
   </section>
 
   <section class="card">
@@ -90,9 +100,6 @@
       Limitations: GDP is not inflation-adjusted here (nominal). Aggregation may hide intra-quarter shocks.
       Long-run GDP level partly reflects price level changes.
     </p>
-    <p class="note subtle">
-      Sources (original series): CPI & unemployment (BLS/FRED), GDP (BEA/FRED). This project uses a prepared CSV for class.
-    </p>
   </section>
 
 </main>
@@ -101,6 +108,7 @@
   Université Paris 8 — Web Graphique et Design des Données
 </footer>
 
-<script src="script.js?v=7"></script>
+<!-- IMPORTANT: bump version to break cache -->
+<script src="script.js?v=99"></script>
 </body>
 </html>
