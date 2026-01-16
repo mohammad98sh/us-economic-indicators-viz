@@ -91,21 +91,20 @@ function baseSpec(){
     width: chartWidth(),
     config: {
       view: { stroke: null },
-      axis: {
-        grid: true,
-        gridOpacity: 0.15,
-        labelColor: "#111827",
-        titleColor: "#111827"
-      }
+      axis: { grid: true, gridOpacity: 0.15, labelColor: "#111827", titleColor: "#111827" }
     }
   };
 }
 
 /**
- * Line + crosshair
- * IMPORTANT: paramName must be unique per chart to avoid duplicate signals in vconcat.
+ * Single chart line + TradingView-like crosshair:
+ * - nearest point on mousemove
+ * - vertical & horizontal rules
+ * - tooltip on hover
+ * (No vconcat here => no signal collisions)
  */
-function lineSpec(data, yField, yTitle, paramName){
+function lineWithCrosshairSpec(data, yField, yTitle){
+  const paramName = "xhair"; // OK because each embed is separate now
   return {
     ...baseSpec(),
     height: 240,
@@ -128,8 +127,6 @@ function lineSpec(data, yField, yTitle, paramName){
           y: { field: yField, type: "quantitative", title: yTitle }
         }
       },
-
-      // point shows on hover
       {
         mark: { type: "point", filled: true, size: 55 },
         encoding: {
@@ -138,22 +135,8 @@ function lineSpec(data, yField, yTitle, paramName){
           opacity: { condition: { param: paramName, value: 1 }, value: 0 }
         }
       },
-
-      // vertical rule (x)
-      {
-        transform: [{ filter: { param: paramName } }],
-        mark: { type: "rule" },
-        encoding: { x: { field: "date", type: "temporal" } }
-      },
-
-      // horizontal rule (y)
-      {
-        transform: [{ filter: { param: paramName } }],
-        mark: { type: "rule" },
-        encoding: { y: { field: yField, type: "quantitative" } }
-      },
-
-      // tooltip anchor
+      { transform: [{ filter: { param: paramName } }], mark: { type: "rule" }, encoding: { x: { field: "date", type: "temporal" } } },
+      { transform: [{ filter: { param: paramName } }], mark: { type: "rule" }, encoding: { y: { field: yField, type: "quantitative" } } },
       {
         transform: [{ filter: { param: paramName } }],
         mark: { type: "point", filled: true, size: 90, opacity: 0.001 },
@@ -170,20 +153,8 @@ function lineSpec(data, yField, yTitle, paramName){
   };
 }
 
-function vconcatSpec(title, specs){
-  return {
-    $schema: "https://vega.github.io/schema/vega-lite/v5.json",
-    title: { text: title, anchor: "start", fontSize: 14 },
-    vconcat: specs,
-    spacing: 14
-  };
-}
-
-/**
- * Scatter + crosshair
- */
 function scatterSpec(data){
-  const paramName = "hover_scatter";
+  const paramName = "xhair_scatter";
   return {
     ...baseSpec(),
     height: 330,
@@ -191,12 +162,7 @@ function scatterSpec(data){
     transform: [{ calculate: "year(datum.date)", as: "year" }],
     params: [{
       name: paramName,
-      select: {
-        type: "point",
-        nearest: true,
-        on: "mousemove",
-        clear: "mouseout"
-      }
+      select: { type: "point", nearest: true, on: "mousemove", clear: "mouseout" }
     }],
     layer: [
       {
@@ -207,35 +173,11 @@ function scatterSpec(data){
           color: { field: "year", type: "quantitative", title: "Year" }
         }
       },
-
-      // highlight
+      { transform: [{ filter: { param: paramName } }], mark: { type: "rule" }, encoding: { x: { field: "unemployment_rate", type: "quantitative" } } },
+      { transform: [{ filter: { param: paramName } }], mark: { type: "rule" }, encoding: { y: { field: "inflation_yoy", type: "quantitative" } } },
       {
         transform: [{ filter: { param: paramName } }],
-        mark: { type: "point", filled: true, size: 170 },
-        encoding: {
-          x: { field: "unemployment_rate", type: "quantitative" },
-          y: { field: "inflation_yoy", type: "quantitative" }
-        }
-      },
-
-      // vertical rule
-      {
-        transform: [{ filter: { param: paramName } }],
-        mark: { type: "rule" },
-        encoding: { x: { field: "unemployment_rate", type: "quantitative" } }
-      },
-
-      // horizontal rule
-      {
-        transform: [{ filter: { param: paramName } }],
-        mark: { type: "rule" },
-        encoding: { y: { field: "inflation_yoy", type: "quantitative" } }
-      },
-
-      // tooltip
-      {
-        transform: [{ filter: { param: paramName } }],
-        mark: { type: "point", filled: true, size: 120, opacity: 0.001 },
+        mark: { type: "point", filled: true, size: 140 },
         encoding: {
           x: { field: "unemployment_rate", type: "quantitative" },
           y: { field: "inflation_yoy", type: "quantitative" },
@@ -252,22 +194,13 @@ function scatterSpec(data){
 }
 
 async function renderAllCharts(data){
-  // Clear debug per render
   setText("debugMsg", "");
 
-  const timeSpec = vconcatSpec("Time trends", [
-    lineSpec(data, "unemployment_rate", "Unemployment (%)", "hover_unemp"),
-    lineSpec(data, "inflation_yoy", "Inflation YoY (%)", "hover_infl"),
-  ]);
-
-  const gdpSpec = vconcatSpec("GDP trend", [
-    lineSpec(data, "gdp_billions", "GDP (billions)", "hover_gdp_level"),
-    lineSpec(data, "gdp_growth_yoy", "GDP growth YoY (%)", "hover_gdp_yoy"),
-  ]);
-
-  await safeEmbed("#chartTime", timeSpec);
+  await safeEmbed("#chartUnemp", lineWithCrosshairSpec(data, "unemployment_rate", "Unemployment (%)"));
+  await safeEmbed("#chartInfl", lineWithCrosshairSpec(data, "inflation_yoy", "Inflation YoY (%)"));
   await safeEmbed("#chartScatter", scatterSpec(data));
-  await safeEmbed("#chartGDP", gdpSpec);
+  await safeEmbed("#chartGDPLevel", lineWithCrosshairSpec(data, "gdp_billions", "GDP (billions)"));
+  await safeEmbed("#chartGDPYoY", lineWithCrosshairSpec(data, "gdp_growth_yoy", "GDP growth YoY (%)"));
 }
 
 async function main(){
@@ -305,11 +238,11 @@ async function main(){
 
   await renderAllCharts(data);
 
-  // re-render on resize (responsive)
+  // responsive re-render
   let t = null;
   window.addEventListener("resize", () => {
     clearTimeout(t);
-    t = setTimeout(() => renderAllCharts(data), 220);
+    t = setTimeout(() => renderAllCharts(data), 250);
   });
 
   setText("statusLine", `Done ✅ (${data.length} rows)`);
