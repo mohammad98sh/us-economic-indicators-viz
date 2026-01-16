@@ -4,99 +4,103 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>US Economy (1975–2024)</title>
+  <link rel="stylesheet" href="style.css" />
 
-  <link rel="stylesheet" href="style.css?v=12"/>
-
-  <!-- Vega stack (PINNED versions) -->
-  <script src="https://cdn.jsdelivr.net/npm/vega@5.25.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.16.3"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.24.0"></script>
+  <!-- Vega stack -->
+  <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
 </head>
-
 <body>
-  <header class="hero">
-    <div class="hero-inner">
-      <h1>US Economy (1975–2024)</h1>
-      <p class="subtitle">
-        Inflation (YoY), unemployment rate, and GDP (with YoY growth) — minimal data visualization with Vega-Lite.
-      </p>
 
-      <div class="chips">
-        <span class="chip">Quarterly</span>
-        <span class="chip">1975Q1 → 2024Q1</span>
-        <span class="chip">Vega-Lite</span>
-      </div>
+<header class="hero">
+  <div class="hero-inner">
+    <h1>US Economy (1975–2024)</h1>
+    <p class="subtitle">
+      Inflation (YoY), unemployment rate, and GDP (with YoY growth) — minimal data visualization with Vega-Lite.
+    </p>
+
+    <div class="chips">
+      <span class="chip">Quarterly</span>
+      <span class="chip">1975Q1 → 2024Q1</span>
+      <span class="chip">Vega-Lite</span>
     </div>
-  </header>
+  </div>
+</header>
 
-  <main>
-    <section class="card">
-      <h2>Overview</h2>
-      <p class="note">
-        This page explores long-run U.S. macroeconomic dynamics from 1975Q1 to 2024Q1 using quarterly data:
-        inflation (year-over-year), unemployment rate, and GDP (level + YoY growth).
-        The goal is descriptive: highlight patterns, co-movements, and key episodes.
-      </p>
-      <p class="note">
-        Interpretation note: relationships shown here are correlational and do not imply causality.
-      </p>
-    </section>
+<main class="container">
 
-    <section class="card">
-      <h2>Status</h2>
-      <p class="note" id="statusLine">Loading…</p>
-      <p class="note" id="statusLibs"></p>
-      <p class="note" id="debugMsg"></p>
-    </section>
+  <section class="card">
+    <h2>Overview</h2>
+    <p class="note">
+      This page explores long-run U.S. macroeconomic dynamics from 1975Q1 to 2024Q1 using quarterly data:
+      inflation (year-over-year), unemployment rate, and GDP (level + YoY growth).
+      The goal is descriptive: highlight patterns, co-movements, and key episodes.
+    </p>
+    <p class="note subtle">
+      Interpretation note: relationships shown here are correlational and do not imply causality.
+    </p>
+  </section>
 
-    <section class="card">
-      <h2>Time trends</h2>
-      <p class="note">Quarterly time series for unemployment and inflation (YoY).</p>
-      <div id="chartTime" class="viz"></div>
-    </section>
+  <section class="card">
+    <h2>Status</h2>
+    <div class="status-grid">
+      <div class="status-line" id="statusLine">Loading…</div>
+      <div class="status-sub" id="statusLibs"></div>
+      <div class="status-sub error" id="debugMsg"></div>
+    </div>
+  </section>
 
-    <section class="card">
-      <h2>Inflation × Unemployment</h2>
-      <p class="note">Each dot is a quarter. Color encodes year.</p>
-      <div id="chartScatter" class="viz"></div>
-    </section>
+  <section class="card">
+    <h2>Time trends</h2>
+    <p class="note subtle">Crosshair is enabled: move your cursor over the chart.</p>
+    <div class="viz" id="chartTime"></div>
+  </section>
 
-    <section class="card">
-      <h2>GDP trend</h2>
-      <p class="note">GDP level (billions) and GDP YoY growth (%).</p>
-      <div id="chartGDP" class="viz"></div>
-    </section>
+  <section class="card">
+    <h2>Inflation × Unemployment</h2>
+    <p class="note subtle">Each dot is a quarter. Hover shows values and draws crosshair rules.</p>
+    <div class="viz" id="chartScatter"></div>
+  </section>
 
-    <section class="card">
-      <h2>Dataset preview</h2>
-      <p class="note">Download: <a href="data/us_economic_indicators.csv">us_economic_indicators.csv</a></p>
-      <div id="tableContainer" class="table-scroll">Loading preview…</div>
-      <p class="note" style="margin-top:10px;">
-        Columns: <strong>date</strong>, <strong>gdp_billions</strong>, <strong>gdp_growth_yoy</strong>,
-        <strong>unemployment_rate</strong>, <strong>inflation_yoy</strong>.
-      </p>
-    </section>
+  <section class="card">
+    <h2>GDP trend</h2>
+    <p class="note subtle">GDP level (billions) and GDP YoY growth (%). Crosshair enabled.</p>
+    <div class="viz" id="chartGDP"></div>
+  </section>
 
-    <section class="card">
-      <h2>Method & limitations</h2>
-      <p class="note">
-        Data are harmonized to quarterly frequency. Inflation is computed as YoY change of the quarterly-average CPI.
-        Unemployment is the quarterly average of monthly unemployment rate. GDP is quarterly level, with YoY growth.
-      </p>
-      <p class="note">
-        Limitations: Aggregation may hide intra-quarter shocks. GDP is not inflation-adjusted here (nominal level),
-        so long-run growth partly reflects price level changes.
-      </p>
-      <p class="note">
-        Sources (original series): CPI & unemployment (BLS/FRED), GDP (BEA/FRED). This project uses a prepared CSV for class.
-      </p>
-    </section>
-  </main>
+  <section class="card">
+    <h2>Dataset preview</h2>
+    <p class="note">
+      Download: <a href="data/us_economic_indicators.csv">us_economic_indicators.csv</a>
+    </p>
+    <div class="table-scroll">
+      <div id="tableContainer">Loading preview…</div>
+    </div>
+    <p class="note subtle" id="columnsLine"></p>
+  </section>
 
-  <footer>
-    <p class="footer-note">Université Paris 8 — Web Graphique et Design des Données</p>
-  </footer>
+  <section class="card">
+    <h2>Method & limitations</h2>
+    <p class="note">
+      Data are harmonized to quarterly frequency. Inflation is computed as YoY change of the quarterly-average CPI.
+      Unemployment is the quarterly average of monthly unemployment rate. GDP is quarterly level, with YoY growth.
+    </p>
+    <p class="note subtle">
+      Limitations: GDP is not inflation-adjusted here (nominal). Aggregation may hide intra-quarter shocks.
+      Long-run GDP level partly reflects price level changes.
+    </p>
+    <p class="note subtle">
+      Sources (original series): CPI & unemployment (BLS/FRED), GDP (BEA/FRED). This project uses a prepared CSV for class.
+    </p>
+  </section>
 
-  <script src="script.js?v=12"></script>
+</main>
+
+<footer class="footer">
+  Université Paris 8 — Web Graphique et Design des Données
+</footer>
+
+<script src="script.js?v=7"></script>
 </body>
 </html>
