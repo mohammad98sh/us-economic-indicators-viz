@@ -13,11 +13,10 @@ async function loadCSV() {
   const res = await fetch(DATA_URL, { cache: "no-store" });
   if (!res.ok) throw new Error(`CSV fetch failed: ${res.status} ${res.statusText}`);
   const text = await res.text();
-  const rows = parseCSV(text);
-  return rows;
+  return parseCSV(text);
 }
 
-// Minimal CSV parser (handles commas, no quotes needed for this dataset)
+// Minimal CSV parser (works for simple numeric CSV without quoted commas)
 function parseCSV(text) {
   const lines = text.trim().split(/\r?\n/);
   const headers = lines[0].split(",").map(s => s.trim());
@@ -38,9 +37,8 @@ function toNumber(x) {
 }
 
 function normalizeRows(rows) {
-  // Ensure types
   return rows.map(r => ({
-    date: r.date, // keep as ISO string
+    date: r.date,
     gdp_billions: toNumber(r.gdp_billions),
     gdp_growth_yoy: toNumber(r.gdp_growth_yoy),
     unemployment_rate: toNumber(r.unemployment_rate),
@@ -49,116 +47,44 @@ function normalizeRows(rows) {
 }
 
 /**
- * Crosshair layer:
- * - use a single selection name per chart
- * - uses nearest + mouseover (NOT raw vega signals)
- * - rules + tooltip text
+ * Minimal chart config: no gridlines, clean axes.
  */
-function crosshairLayer({xField, yField, xType="temporal", yType="quantitative", selectionName="hover"}) {
-  return {
-    layer: [
-      // Main line/points should be provided by caller in layer[0]
-      // Here we provide crosshair & tooltip layers.
-      {
-        params: [{
-          name: selectionName,
-          select: { type: "point", fields: [xField], nearest: true, on: "pointermove", clear: "pointerout" }
-        }]
-      },
-      {
-        mark: { type: "rule" },
-        encoding: {
-          x: { field: xField, type: xType },
-          opacity: {
-            condition: { param: selectionName, value: 0.35 },
-            value: 0
-          }
-        }
-      },
-      {
-        mark: { type: "rule" },
-        encoding: {
-          y: { field: yField, type: yType },
-          opacity: {
-            condition: { param: selectionName, value: 0.35 },
-            value: 0
-          }
-        }
-      },
-      {
-        mark: { type: "point", filled: true, size: 60 },
-        encoding: {
-          x: { field: xField, type: xType },
-          y: { field: yField, type: yType },
-          opacity: {
-            condition: { param: selectionName, value: 1 },
-            value: 0
-          }
-        }
-      }
-    ]
-  };
-}
-
-function baseConfig(title) {
+function baseConfig(title, height=240) {
   return {
     $schema: "https://vega.github.io/schema/vega-lite/v5.json",
     title: { text: title, fontSize: 12, anchor: "start", offset: 10 },
     width: "container",
-    height: 240,
+    height,
     data: { url: DATA_URL },
     config: {
-      axis: { labelFontSize: 11, titleFontSize: 11, grid: true },
+      axis: {
+        grid: false,
+        labelFontSize: 11,
+        titleFontSize: 11,
+        tickSize: 4
+      },
       view: { stroke: null }
     }
   };
 }
 
-function lineWithCrosshair({title, yField, yTitle, selectionName}) {
-  const spec = baseConfig(title);
-  spec.layer = [
-    {
-      mark: { type: "line", strokeWidth: 2 },
-      encoding: {
-        x: { field: "date", type: "temporal", title: "Date" },
-        y: { field: yField, type: "quantitative", title: yTitle }
-      }
-    },
-    // add crosshair/point layers
-    ...crosshairLayer({
-      xField: "date",
-      yField,
-      xType: "temporal",
-      yType: "quantitative",
-      selectionName
-    }).layer.slice(1), // skip empty param-only layer (we'll insert params on first layer below)
-  ];
-
-  // Put the selection on the first layer (prevents duplicate signals)
-  spec.layer[0].params = [{
-    name: selectionName,
-    select: { type: "point", fields: ["date"], nearest: true, on: "pointermove", clear: "pointerout" }
-  }];
-
-  // Tooltips on hover
-  spec.layer[0].encoding.tooltip = [
-    { field: "date", type: "temporal", title: "Date" },
-    { field: yField, type: "quantitative", title: yTitle, format: ".2f" }
-  ];
-
+function lineSpec({ title, yField, yTitle }) {
+  const spec = baseConfig(title, 240);
+  spec.mark = { type: "line", strokeWidth: 2 };
+  spec.encoding = {
+    x: { field: "date", type: "temporal", title: "Date" },
+    y: { field: yField, type: "quantitative", title: yTitle },
+    tooltip: [
+      { field: "date", type: "temporal", title: "Date" },
+      { field: yField, type: "quantitative", title: yTitle, format: ".2f" }
+    ]
+  };
   return spec;
 }
 
-function scatterWithCrosshair() {
-  const spec = baseConfig("Inflation vs Unemployment (quarterly points)");
-  spec.height = 280;
-
+function scatterSpec() {
+  const spec = baseConfig("Inflation vs Unemployment (quarterly points)", 280);
   spec.mark = { type: "point", filled: true, size: 60 };
-  spec.params = [{
-    name: "hover_scatter",
-    select: { type: "point", fields: ["date"], nearest: true, on: "pointermove", clear: "pointerout" }
-  }];
-
   spec.encoding = {
     x: { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)" },
     y: { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)" },
@@ -169,70 +95,42 @@ function scatterWithCrosshair() {
       { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)", format: ".2f" }
     ]
   };
-
-  // Add crosshair rules for scatter: vertical rule at x, horizontal at y using the selection
-  spec.layer = [
-    { ...spec }, // base scatter as first layer
-    {
-      mark: { type: "rule" },
-      encoding: {
-        x: { field: "unemployment_rate", type: "quantitative" },
-        opacity: { condition: { param: "hover_scatter", value: 0.35 }, value: 0 }
-      }
-    },
-    {
-      mark: { type: "rule" },
-      encoding: {
-        y: { field: "inflation_yoy", type: "quantitative" },
-        opacity: { condition: { param: "hover_scatter", value: 0.35 }, value: 0 }
-      }
-    }
-  ];
-
-  // Remove top-level schema duplication inside layer
-  delete spec.layer[0].layer;
-
-  return { ...spec, mark: undefined, encoding: undefined, params: undefined, title: spec.title, width: spec.width, height: spec.height, data: spec.data, config: spec.config };
+  return spec;
 }
 
 async function renderAll() {
   try {
     setStatus(true, "Loading…");
+
     const rows = normalizeRows(await loadCSV());
     setStatus(true, `Done ✅ (${rows.length} rows)`, "vega: OK | vegaLite: OK | vegaEmbed: OK");
 
-    // Charts (IMPORTANT: use correct container IDs)
-    await vegaEmbed("#chartUnemp", lineWithCrosshair({
+    await vegaEmbed("#chartUnemp", lineSpec({
       title: "Unemployment rate (quarterly)",
       yField: "unemployment_rate",
-      yTitle: "Unemployment (%)",
-      selectionName: "hover_unemp"
+      yTitle: "Unemployment (%)"
     }), { actions: false });
 
-    await vegaEmbed("#chartInfl", lineWithCrosshair({
+    await vegaEmbed("#chartInfl", lineSpec({
       title: "Inflation (YoY, quarterly)",
       yField: "inflation_yoy",
-      yTitle: "Inflation YoY (%)",
-      selectionName: "hover_infl"
+      yTitle: "Inflation YoY (%)"
     }), { actions: false });
 
-    await vegaEmbed("#chartScatter", scatterWithCrosshair(), { actions: false });
+    await vegaEmbed("#chartScatter", scatterSpec(), { actions: false });
 
-    await vegaEmbed("#chartGDPLevel", lineWithCrosshair({
+    await vegaEmbed("#chartGDPLevel", lineSpec({
       title: "GDP level (billions, quarterly)",
       yField: "gdp_billions",
-      yTitle: "GDP (billions)",
-      selectionName: "hover_gdp_level"
+      yTitle: "GDP (billions)"
     }), { actions: false });
 
-    await vegaEmbed("#chartGDPYoY", lineWithCrosshair({
+    await vegaEmbed("#chartGDPYoY", lineSpec({
       title: "GDP growth (YoY %, quarterly)",
       yField: "gdp_growth_yoy",
-      yTitle: "GDP YoY (%)",
-      selectionName: "hover_gdp_yoy"
+      yTitle: "GDP YoY (%)"
     }), { actions: false });
 
-    // Table preview (first 25 rows)
     renderTable(rows, 25);
 
   } catch (err) {
@@ -249,14 +147,13 @@ function renderTable(rows, limit=25) {
     return;
   }
   const cols = Object.keys(rows[0]);
-  const head = `
-    <thead><tr>${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead>
-  `;
-  const bodyRows = rows.slice(0, limit).map(r => {
-    return `<tr>${cols.map(c => `<td>${r[c] ?? ""}</td>`).join("")}</tr>`;
-  }).join("");
 
-  container.innerHTML = `<table>${head}<tbody>${bodyRows}</tbody></table>`;
+  const head = `<thead><tr>${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead>`;
+  const body = rows.slice(0, limit).map(r =>
+    `<tr>${cols.map(c => `<td>${r[c] ?? ""}</td>`).join("")}</tr>`
+  ).join("");
+
+  container.innerHTML = `<table>${head}<tbody>${body}</tbody></table>`;
   meta.textContent = `Columns: ${cols.join(", ")}. Showing first ${Math.min(limit, rows.length)} rows.`;
 }
 
