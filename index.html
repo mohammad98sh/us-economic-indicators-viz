@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>US Economy (1975–2024)</title>
 
-  <link rel="stylesheet" href="style.css?v=10"/>
+  <link rel="stylesheet" href="style.css?v=11"/>
 
   <!-- Vega stack (PINNED versions) -->
   <script src="https://cdn.jsdelivr.net/npm/vega@5.25.0"></script>
@@ -18,12 +18,24 @@
     <div class="hero-inner">
       <h1>US Economy (1975–2024)</h1>
       <p class="subtitle">
-        Inflation (YoY), unemployment rate, and GDP (with YoY growth) — minimal visualization with Vega-Lite.
+        Inflation (YoY), unemployment rate, and GDP (with YoY growth) — minimal data visualization with Vega-Lite.
       </p>
     </div>
   </header>
 
   <main>
+    <section class="card">
+      <h2>Overview</h2>
+      <p class="note">
+        This page explores long-run U.S. macroeconomic dynamics from 1975Q1 to 2024Q1 using quarterly data:
+        inflation (year-over-year), unemployment rate, and GDP (level + YoY growth).
+        The goal is descriptive: highlight patterns, co-movements, and key episodes.
+      </p>
+      <p class="note">
+        Interpretation note: relationships shown here are correlational and do not imply causality.
+      </p>
+    </section>
+
     <section class="card">
       <h2>Status</h2>
       <p class="note" id="statusLine">Loading…</p>
@@ -32,23 +44,20 @@
     </section>
 
     <section class="card">
-      <h2>Sanity test</h2>
-      <p class="note">This chart must appear. If not, Vega libraries are not loading.</p>
-      <div id="chartTest" class="viz"></div>
-    </section>
-
-    <section class="card">
       <h2>Time trends</h2>
+      <p class="note">Quarterly time series for unemployment and inflation (YoY).</p>
       <div id="chartTime" class="viz"></div>
     </section>
 
     <section class="card">
       <h2>Inflation × Unemployment</h2>
+      <p class="note">Each dot is a quarter. Color encodes year.</p>
       <div id="chartScatter" class="viz"></div>
     </section>
 
     <section class="card">
       <h2>GDP trend</h2>
+      <p class="note">GDP level (billions) and GDP YoY growth (%).</p>
       <div id="chartGDP" class="viz"></div>
     </section>
 
@@ -56,6 +65,25 @@
       <h2>Dataset preview</h2>
       <p class="note">Download: <a href="data/us_economic_indicators.csv">us_economic_indicators.csv</a></p>
       <div id="tableContainer" class="table-scroll">Loading preview…</div>
+      <p class="note" style="margin-top:10px;">
+        Columns: <strong>date</strong>, <strong>gdp_billions</strong>, <strong>gdp_growth_yoy</strong>,
+        <strong>unemployment_rate</strong>, <strong>inflation_yoy</strong>.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>Method & limitations</h2>
+      <p class="note">
+        Data are harmonized to quarterly frequency. Inflation is computed as YoY change of the quarterly-average CPI.
+        Unemployment is the quarterly average of monthly unemployment rate. GDP is quarterly level, with YoY growth.
+      </p>
+      <p class="note">
+        Limitations: Aggregation may hide intra-quarter shocks. GDP is not inflation-adjusted here (nominal level),
+        so long-run growth partly reflects price level changes.
+      </p>
+      <p class="note">
+        Sources (original series): CPI & unemployment (BLS/FRED), GDP (BEA/FRED). This project uses a prepared CSV for class.
+      </p>
     </section>
   </main>
 
@@ -63,6 +91,6 @@
     <p class="footer-note">Université Paris 8 — Web Graphique et Design des Données</p>
   </footer>
 
-  <script src="script.js?v=10"></script>
+  <script src="script.js?v=11"></script>
 </body>
 </html>
