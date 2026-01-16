@@ -1,255 +1,263 @@
-function setText(id, msg){
-  const el = document.getElementById(id);
-  if (el) el.textContent = msg;
+const DATA_URL = "data/us_economic_indicators.csv";
+
+const statusEl = document.getElementById("status");
+const statusDetailEl = document.getElementById("statusDetail");
+
+function setStatus(ok, msg, detail="") {
+  statusEl.textContent = msg;
+  statusEl.style.color = ok ? "#0f766e" : "#b91c1c";
+  statusDetailEl.textContent = detail;
 }
 
-function libsStatus(){
-  const okVega = typeof vega !== "undefined";
-  const okVL = typeof vegaLite !== "undefined";
-  const okEmbed = typeof vegaEmbed !== "undefined";
-  setText("statusLibs", `vega: ${okVega ? "OK" : "MISSING"} | vegaLite: ${okVL ? "OK" : "MISSING"} | vegaEmbed: ${okEmbed ? "OK" : "MISSING"}`);
-  return { okVega, okVL, okEmbed };
+async function loadCSV() {
+  const res = await fetch(DATA_URL, { cache: "no-store" });
+  if (!res.ok) throw new Error(`CSV fetch failed: ${res.status} ${res.statusText}`);
+  const text = await res.text();
+  const rows = parseCSV(text);
+  return rows;
 }
 
-async function safeEmbed(selector, spec){
-  try{
-    if (typeof vegaEmbed === "undefined") {
-      throw new Error("vegaEmbed is undefined. Vega CDN scripts are not loaded.");
-    }
-    await vegaEmbed(selector, spec, { actions: false, renderer: "svg" });
-  } catch(e){
-    console.error(e);
-    setText("debugMsg", `Embed error at ${selector}: ${e.message}`);
-  }
-}
-
-async function loadCSV(path){
-  const res = await fetch(path, { cache: "no-store" });
-  if (!res.ok) throw new Error(`CSV not found: ${path} (HTTP ${res.status})`);
-  return (await res.text()).trim();
-}
-
-function parseCSV(csvText){
-  const lines = csvText.split("\n").map(l => l.trim()).filter(Boolean);
-  const headers = lines[0].split(",").map(h => h.trim());
-  const rows = lines.slice(1).map(line => {
-    const values = line.split(",").map(v => v.trim());
+// Minimal CSV parser (handles commas, no quotes needed for this dataset)
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const headers = lines[0].split(",").map(s => s.trim());
+  const rows = [];
+  for (let i=1; i<lines.length; i++) {
+    const parts = lines[i].split(",");
+    if (parts.length !== headers.length) continue;
     const obj = {};
-    headers.forEach((h,i) => obj[h] = values[i]);
-    return obj;
-  });
-  return { headers, rows };
+    for (let j=0; j<headers.length; j++) obj[headers[j]] = parts[j];
+    rows.push(obj);
+  }
+  return rows;
 }
 
-function toNumber(x){
-  const n = Number(String(x).replace("%","").replace(" ", ""));
+function toNumber(x) {
+  const n = Number(x);
   return Number.isFinite(n) ? n : null;
 }
 
-function renderTable(headers, rows, limit=20){
-  const container = document.getElementById("tableContainer");
-  const table = document.createElement("table");
-
-  const thead = document.createElement("thead");
-  const trh = document.createElement("tr");
-  headers.forEach(h => {
-    const th = document.createElement("th");
-    th.textContent = h;
-    trh.appendChild(th);
-  });
-  thead.appendChild(trh);
-  table.appendChild(thead);
-
-  const tbody = document.createElement("tbody");
-  rows.slice(0, limit).forEach(r => {
-    const tr = document.createElement("tr");
-    headers.forEach(h => {
-      const td = document.createElement("td");
-      td.textContent = r[h];
-      tr.appendChild(td);
-    });
-    tbody.appendChild(tr);
-  });
-  table.appendChild(tbody);
-
-  container.innerHTML = "";
-  container.appendChild(table);
-
-  setText("columnsLine", `Columns: ${headers.join(", ")}.`);
+function normalizeRows(rows) {
+  // Ensure types
+  return rows.map(r => ({
+    date: r.date, // keep as ISO string
+    gdp_billions: toNumber(r.gdp_billions),
+    gdp_growth_yoy: toNumber(r.gdp_growth_yoy),
+    unemployment_rate: toNumber(r.unemployment_rate),
+    inflation_yoy: toNumber(r.inflation_yoy)
+  })).filter(r => r.date);
 }
 
-function chartWidth(){
-  const main = document.querySelector("main");
-  const w = main ? main.clientWidth : window.innerWidth;
-  return Math.max(320, Math.min(900, w - 60));
+/**
+ * Crosshair layer:
+ * - use a single selection name per chart
+ * - uses nearest + mouseover (NOT raw vega signals)
+ * - rules + tooltip text
+ */
+function crosshairLayer({xField, yField, xType="temporal", yType="quantitative", selectionName="hover"}) {
+  return {
+    layer: [
+      // Main line/points should be provided by caller in layer[0]
+      // Here we provide crosshair & tooltip layers.
+      {
+        params: [{
+          name: selectionName,
+          select: { type: "point", fields: [xField], nearest: true, on: "pointermove", clear: "pointerout" }
+        }]
+      },
+      {
+        mark: { type: "rule" },
+        encoding: {
+          x: { field: xField, type: xType },
+          opacity: {
+            condition: { param: selectionName, value: 0.35 },
+            value: 0
+          }
+        }
+      },
+      {
+        mark: { type: "rule" },
+        encoding: {
+          y: { field: yField, type: yType },
+          opacity: {
+            condition: { param: selectionName, value: 0.35 },
+            value: 0
+          }
+        }
+      },
+      {
+        mark: { type: "point", filled: true, size: 60 },
+        encoding: {
+          x: { field: xField, type: xType },
+          y: { field: yField, type: yType },
+          opacity: {
+            condition: { param: selectionName, value: 1 },
+            value: 0
+          }
+        }
+      }
+    ]
+  };
 }
 
-function baseSpec(){
+function baseConfig(title) {
   return {
     $schema: "https://vega.github.io/schema/vega-lite/v5.json",
-    autosize: { type: "fit", contains: "padding" },
-    width: chartWidth(),
+    title: { text: title, fontSize: 12, anchor: "start", offset: 10 },
+    width: "container",
+    height: 240,
+    data: { url: DATA_URL },
     config: {
-      view: { stroke: null },
-      axis: { grid: true, gridOpacity: 0.15, labelColor: "#111827", titleColor: "#111827" }
+      axis: { labelFontSize: 11, titleFontSize: 11, grid: true },
+      view: { stroke: null }
     }
   };
 }
 
-/**
- * Single chart line + TradingView-like crosshair:
- * - nearest point on mousemove
- * - vertical & horizontal rules
- * - tooltip on hover
- * (No vconcat here => no signal collisions)
- */
-function lineWithCrosshairSpec(data, yField, yTitle){
-  const paramName = "xhair"; // OK because each embed is separate now
-  return {
-    ...baseSpec(),
-    height: 240,
-    data: { values: data },
-    params: [{
-      name: paramName,
-      select: {
-        type: "point",
-        fields: ["date"],
-        nearest: true,
-        on: "mousemove",
-        clear: "mouseout"
+function lineWithCrosshair({title, yField, yTitle, selectionName}) {
+  const spec = baseConfig(title);
+  spec.layer = [
+    {
+      mark: { type: "line", strokeWidth: 2 },
+      encoding: {
+        x: { field: "date", type: "temporal", title: "Date" },
+        y: { field: yField, type: "quantitative", title: yTitle }
       }
-    }],
-    layer: [
-      {
-        mark: { type: "line" },
-        encoding: {
-          x: { field: "date", type: "temporal", title: "Date" },
-          y: { field: yField, type: "quantitative", title: yTitle }
-        }
-      },
-      {
-        mark: { type: "point", filled: true, size: 55 },
-        encoding: {
-          x: { field: "date", type: "temporal" },
-          y: { field: yField, type: "quantitative" },
-          opacity: { condition: { param: paramName, value: 1 }, value: 0 }
-        }
-      },
-      { transform: [{ filter: { param: paramName } }], mark: { type: "rule" }, encoding: { x: { field: "date", type: "temporal" } } },
-      { transform: [{ filter: { param: paramName } }], mark: { type: "rule" }, encoding: { y: { field: yField, type: "quantitative" } } },
-      {
-        transform: [{ filter: { param: paramName } }],
-        mark: { type: "point", filled: true, size: 90, opacity: 0.001 },
-        encoding: {
-          x: { field: "date", type: "temporal" },
-          y: { field: yField, type: "quantitative" },
-          tooltip: [
-            { field: "date", type: "temporal", title: "Date" },
-            { field: yField, type: "quantitative", title: yTitle }
-          ]
-        }
-      }
+    },
+    // add crosshair/point layers
+    ...crosshairLayer({
+      xField: "date",
+      yField,
+      xType: "temporal",
+      yType: "quantitative",
+      selectionName
+    }).layer.slice(1), // skip empty param-only layer (we'll insert params on first layer below)
+  ];
+
+  // Put the selection on the first layer (prevents duplicate signals)
+  spec.layer[0].params = [{
+    name: selectionName,
+    select: { type: "point", fields: ["date"], nearest: true, on: "pointermove", clear: "pointerout" }
+  }];
+
+  // Tooltips on hover
+  spec.layer[0].encoding.tooltip = [
+    { field: "date", type: "temporal", title: "Date" },
+    { field: yField, type: "quantitative", title: yTitle, format: ".2f" }
+  ];
+
+  return spec;
+}
+
+function scatterWithCrosshair() {
+  const spec = baseConfig("Inflation vs Unemployment (quarterly points)");
+  spec.height = 280;
+
+  spec.mark = { type: "point", filled: true, size: 60 };
+  spec.params = [{
+    name: "hover_scatter",
+    select: { type: "point", fields: ["date"], nearest: true, on: "pointermove", clear: "pointerout" }
+  }];
+
+  spec.encoding = {
+    x: { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)" },
+    y: { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)" },
+    color: { field: "date", type: "temporal", title: "Year", timeUnit: "year" },
+    tooltip: [
+      { field: "date", type: "temporal", title: "Date" },
+      { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)", format: ".2f" },
+      { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)", format: ".2f" }
     ]
   };
-}
 
-function scatterSpec(data){
-  const paramName = "xhair_scatter";
-  return {
-    ...baseSpec(),
-    height: 330,
-    data: { values: data },
-    transform: [{ calculate: "year(datum.date)", as: "year" }],
-    params: [{
-      name: paramName,
-      select: { type: "point", nearest: true, on: "mousemove", clear: "mouseout" }
-    }],
-    layer: [
-      {
-        mark: { type: "point", filled: true, opacity: 0.6 },
-        encoding: {
-          x: { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)" },
-          y: { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)" },
-          color: { field: "year", type: "quantitative", title: "Year" }
-        }
-      },
-      { transform: [{ filter: { param: paramName } }], mark: { type: "rule" }, encoding: { x: { field: "unemployment_rate", type: "quantitative" } } },
-      { transform: [{ filter: { param: paramName } }], mark: { type: "rule" }, encoding: { y: { field: "inflation_yoy", type: "quantitative" } } },
-      {
-        transform: [{ filter: { param: paramName } }],
-        mark: { type: "point", filled: true, size: 140 },
-        encoding: {
-          x: { field: "unemployment_rate", type: "quantitative" },
-          y: { field: "inflation_yoy", type: "quantitative" },
-          tooltip: [
-            { field: "date", type: "temporal", title: "Date" },
-            { field: "unemployment_rate", type: "quantitative", title: "Unemployment (%)" },
-            { field: "inflation_yoy", type: "quantitative", title: "Inflation YoY (%)" },
-            { field: "gdp_growth_yoy", type: "quantitative", title: "GDP YoY (%)" }
-          ]
-        }
+  // Add crosshair rules for scatter: vertical rule at x, horizontal at y using the selection
+  spec.layer = [
+    { ...spec }, // base scatter as first layer
+    {
+      mark: { type: "rule" },
+      encoding: {
+        x: { field: "unemployment_rate", type: "quantitative" },
+        opacity: { condition: { param: "hover_scatter", value: 0.35 }, value: 0 }
       }
-    ]
-  };
+    },
+    {
+      mark: { type: "rule" },
+      encoding: {
+        y: { field: "inflation_yoy", type: "quantitative" },
+        opacity: { condition: { param: "hover_scatter", value: 0.35 }, value: 0 }
+      }
+    }
+  ];
+
+  // Remove top-level schema duplication inside layer
+  delete spec.layer[0].layer;
+
+  return { ...spec, mark: undefined, encoding: undefined, params: undefined, title: spec.title, width: spec.width, height: spec.height, data: spec.data, config: spec.config };
 }
 
-async function renderAllCharts(data){
-  setText("debugMsg", "");
+async function renderAll() {
+  try {
+    setStatus(true, "Loading…");
+    const rows = normalizeRows(await loadCSV());
+    setStatus(true, `Done ✅ (${rows.length} rows)`, "vega: OK | vegaLite: OK | vegaEmbed: OK");
 
-  await safeEmbed("#chartUnemp", lineWithCrosshairSpec(data, "unemployment_rate", "Unemployment (%)"));
-  await safeEmbed("#chartInfl", lineWithCrosshairSpec(data, "inflation_yoy", "Inflation YoY (%)"));
-  await safeEmbed("#chartScatter", scatterSpec(data));
-  await safeEmbed("#chartGDPLevel", lineWithCrosshairSpec(data, "gdp_billions", "GDP (billions)"));
-  await safeEmbed("#chartGDPYoY", lineWithCrosshairSpec(data, "gdp_growth_yoy", "GDP growth YoY (%)"));
+    // Charts (IMPORTANT: use correct container IDs)
+    await vegaEmbed("#chartUnemp", lineWithCrosshair({
+      title: "Unemployment rate (quarterly)",
+      yField: "unemployment_rate",
+      yTitle: "Unemployment (%)",
+      selectionName: "hover_unemp"
+    }), { actions: false });
+
+    await vegaEmbed("#chartInfl", lineWithCrosshair({
+      title: "Inflation (YoY, quarterly)",
+      yField: "inflation_yoy",
+      yTitle: "Inflation YoY (%)",
+      selectionName: "hover_infl"
+    }), { actions: false });
+
+    await vegaEmbed("#chartScatter", scatterWithCrosshair(), { actions: false });
+
+    await vegaEmbed("#chartGDPLevel", lineWithCrosshair({
+      title: "GDP level (billions, quarterly)",
+      yField: "gdp_billions",
+      yTitle: "GDP (billions)",
+      selectionName: "hover_gdp_level"
+    }), { actions: false });
+
+    await vegaEmbed("#chartGDPYoY", lineWithCrosshair({
+      title: "GDP growth (YoY %, quarterly)",
+      yField: "gdp_growth_yoy",
+      yTitle: "GDP YoY (%)",
+      selectionName: "hover_gdp_yoy"
+    }), { actions: false });
+
+    // Table preview (first 25 rows)
+    renderTable(rows, 25);
+
+  } catch (err) {
+    console.error(err);
+    setStatus(false, "Error ❌", String(err.message || err));
+  }
 }
 
-async function main(){
-  setText("statusLine", "JS started ✅");
-  setText("debugMsg", "");
-
-  const { okEmbed } = libsStatus();
-  if (!okEmbed) {
-    setText("statusLine", "Failed ❌");
-    setText("debugMsg", "Vega libraries are missing. CDN may be blocked.");
+function renderTable(rows, limit=25) {
+  const container = document.getElementById("tableContainer");
+  const meta = document.getElementById("tableMeta");
+  if (!rows.length) {
+    container.textContent = "No data";
     return;
   }
+  const cols = Object.keys(rows[0]);
+  const head = `
+    <thead><tr>${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead>
+  `;
+  const bodyRows = rows.slice(0, limit).map(r => {
+    return `<tr>${cols.map(c => `<td>${r[c] ?? ""}</td>`).join("")}</tr>`;
+  }).join("");
 
-  setText("statusLine", "Loading CSV…");
-
-  const csvPath = "data/us_economic_indicators.csv";
-  const csvText = await loadCSV(csvPath);
-  const { headers, rows } = parseCSV(csvText);
-
-  renderTable(headers, rows, 20);
-
-  const data = rows.map(r => ({
-    date: r.date,
-    gdp_billions: toNumber(r.gdp_billions),
-    gdp_growth_yoy: toNumber(r.gdp_growth_yoy),
-    unemployment_rate: toNumber(r.unemployment_rate),
-    inflation_yoy: toNumber(r.inflation_yoy),
-  })).filter(d =>
-    d.date &&
-    d.gdp_billions !== null &&
-    d.gdp_growth_yoy !== null &&
-    d.unemployment_rate !== null &&
-    d.inflation_yoy !== null
-  );
-
-  await renderAllCharts(data);
-
-  // responsive re-render
-  let t = null;
-  window.addEventListener("resize", () => {
-    clearTimeout(t);
-    t = setTimeout(() => renderAllCharts(data), 250);
-  });
-
-  setText("statusLine", `Done ✅ (${data.length} rows)`);
+  container.innerHTML = `<table>${head}<tbody>${bodyRows}</tbody></table>`;
+  meta.textContent = `Columns: ${cols.join(", ")}. Showing first ${Math.min(limit, rows.length)} rows.`;
 }
 
-main().catch(err => {
-  console.error(err);
-  setText("statusLine", "Failed ❌");
-  setText("debugMsg", err.message);
-});
+renderAll();
