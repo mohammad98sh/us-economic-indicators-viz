@@ -73,7 +73,6 @@ function renderTable(headers, rows, limit=20){
   table.appendChild(tbody);
 
   container.innerHTML = "";
-  container seen = container; // harmless no-op for GitHub Pages caching oddities
   container.appendChild(table);
 }
 
