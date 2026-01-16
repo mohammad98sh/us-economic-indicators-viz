@@ -18,9 +18,7 @@ async function safeEmbed(selector, spec){
     }
     await vegaEmbed(selector, spec, {
       actions: false,
-      renderer: "svg",
-      // important: keep tooltip interactions smooth
-      hover: true
+      renderer: "svg"
     });
   } catch(e){
     console.error(e);
@@ -87,10 +85,6 @@ function chartWidth(){
   return Math.max(320, Math.min(860, w - 60));
 }
 
-/**
- * Shared visual config (minimal, readable).
- * Crosshair relies on layer rules; keep view clean.
- */
 function baseSpec(){
   return {
     $schema: "https://vega.github.io/schema/vega-lite/v5.json",
@@ -109,30 +103,26 @@ function baseSpec(){
 }
 
 /**
- * LINE with TradingView-like crosshair:
- * - hover selection nearest point (on mousemove)
- * - vertical rule at hovered date
- * - horizontal rule at hovered y value
- * - highlighted point + tooltip
+ * Line with crosshair using params (stable in v5):
+ * - param "hover" selects nearest point by date
+ * - rules drawn only when hover exists
  */
 function lineSpec(data, yField, yTitle){
-  const hoverSel = {
-    hover: {
-      type: "single",
-      fields: ["date"],
-      nearest: true,
-      on: "mousemove",
-      clear: "mouseout"
-    }
-  };
-
   return {
     ...baseSpec(),
     height: 240,
     data: { values: data },
-    selection: hoverSel,
+    params: [{
+      name: "hover",
+      select: {
+        type: "point",
+        fields: ["date"],
+        nearest: true,
+        on: "mousemove",
+        clear: "mouseout"
+      }
+    }],
     layer: [
-      // main line
       {
         mark: { type: "line" },
         encoding: {
@@ -141,38 +131,34 @@ function lineSpec(data, yField, yTitle){
         }
       },
 
-      // points only on hover (nice focus)
+      // visible point only on hover
       {
         mark: { type: "point", filled: true, size: 55 },
         encoding: {
           x: { field: "date", type: "temporal" },
           y: { field: yField, type: "quantitative" },
-          opacity: { condition: { selection: "hover", value: 1 }, value: 0 }
+          opacity: { condition: { param: "hover", value: 1 }, value: 0 }
         }
       },
 
       // vertical crosshair
       {
-        transform: [{ filter: { selection: "hover" } }],
+        transform: [{ filter: { param: "hover" } }],
         mark: { type: "rule" },
-        encoding: {
-          x: { field: "date", type: "temporal" }
-        }
+        encoding: { x: { field: "date", type: "temporal" } }
       },
 
       // horizontal crosshair
       {
-        transform: [{ filter: { selection: "hover" } }],
+        transform: [{ filter: { param: "hover" } }],
         mark: { type: "rule" },
-        encoding: {
-          y: { field: yField, type: "quantitative" }
-        }
+        encoding: { y: { field: yField, type: "quantitative" } }
       },
 
-      // tooltip anchor (invisible point but shows tooltip precisely)
+      // tooltip on hover
       {
-        transform: [{ filter: { selection: "hover" } }],
-        mark: { type: "point", filled: true, size: 85, opacity: 0.001 },
+        transform: [{ filter: { param: "hover" } }],
+        mark: { type: "point", filled: true, size: 90, opacity: 0.001 },
         encoding: {
           x: { field: "date", type: "temporal" },
           y: { field: yField, type: "quantitative" },
@@ -187,30 +173,24 @@ function lineSpec(data, yField, yTitle){
 }
 
 /**
- * SCATTER with crosshair:
- * - hover selection nearest point
- * - vertical rule at x, horizontal rule at y
- * - highlight point + tooltip
+ * Scatter with crosshair (params):
  */
 function scatterSpec(data){
-  const hoverSel = {
-    hover: {
-      type: "single",
-      fields: ["unemployment_rate", "inflation_yoy", "date"],
-      nearest: true,
-      on: "mousemove",
-      clear: "mouseout"
-    }
-  };
-
   return {
     ...baseSpec(),
     height: 320,
     data: { values: data },
     transform: [{ calculate: "year(datum.date)", as: "year" }],
-    selection: hoverSel,
+    params: [{
+      name: "hover",
+      select: {
+        type: "point",
+        nearest: true,
+        on: "mousemove",
+        clear: "mouseout"
+      }
+    }],
     layer: [
-      // main points
       {
         mark: { type: "point", filled: true, opacity: 0.6 },
         encoding: {
@@ -220,9 +200,9 @@ function scatterSpec(data){
         }
       },
 
-      // highlight hovered point
+      // highlight point
       {
-        transform: [{ filter: { selection: "hover" } }],
+        transform: [{ filter: { param: "hover" } }],
         mark: { type: "point", filled: true, size: 160 },
         encoding: {
           x: { field: "unemployment_rate", type: "quantitative" },
@@ -230,27 +210,23 @@ function scatterSpec(data){
         }
       },
 
-      // vertical crosshair
+      // vertical line
       {
-        transform: [{ filter: { selection: "hover" } }],
+        transform: [{ filter: { param: "hover" } }],
         mark: { type: "rule" },
-        encoding: {
-          x: { field: "unemployment_rate", type: "quantitative" }
-        }
+        encoding: { x: { field: "unemployment_rate", type: "quantitative" } }
       },
 
-      // horizontal crosshair
+      // horizontal line
       {
-        transform: [{ filter: { selection: "hover" } }],
+        transform: [{ filter: { param: "hover" } }],
         mark: { type: "rule" },
-        encoding: {
-          y: { field: "inflation_yoy", type: "quantitative" }
-        }
+        encoding: { y: { field: "inflation_yoy", type: "quantitative" } }
       },
 
       // tooltip anchor
       {
-        transform: [{ filter: { selection: "hover" } }],
+        transform: [{ filter: { param: "hover" } }],
         mark: { type: "point", filled: true, size: 120, opacity: 0.001 },
         encoding: {
           x: { field: "unemployment_rate", type: "quantitative" },
@@ -329,9 +305,7 @@ async function main(){
 
   await renderAllCharts(data);
 
-  // small delayed re-render for layout stability (GitHub Pages + SVG)
-  setTimeout(() => renderAllCharts(data), 300);
-
+  // re-render on resize
   let t = null;
   window.addEventListener("resize", () => {
     clearTimeout(t);
