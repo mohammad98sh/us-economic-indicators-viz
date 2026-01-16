@@ -23,7 +23,7 @@
       <div class="chips">
         <span class="chip">Quarterly</span>
         <span class="chip">1975Q1 → 2024Q1</span>
-        <span class="chip">Crosshair</span>
+        <span class="chip">CSV + Vega-Lite</span>
       </div>
     </div>
   </header>
@@ -49,7 +49,6 @@
 
     <section class="card">
       <h2>Time trends</h2>
-      <p class="muted">Crosshair is enabled: move your cursor over each chart.</p>
 
       <h3>Unemployment rate</h3>
       <div id="chartUnemp" class="chart"></div>
@@ -60,13 +59,13 @@
 
     <section class="card">
       <h2>Inflation × Unemployment</h2>
-      <p class="muted">Each dot is a quarter. Hover shows values and draws crosshair rules.</p>
+      <p class="muted">Each dot is a quarter. Hover shows values.</p>
       <div id="chartScatter" class="chart"></div>
     </section>
 
     <section class="card">
-      <h2>GDP trend</h2>
-      <p class="muted">Two separate charts (no concat) — avoids signal collisions.</p>
+      <h2>GDP</h2>
+      <p class="muted">Level and YoY growth shown separately.</p>
 
       <h3>GDP level (billions)</h3>
       <div id="chartGDPLevel" class="chart"></div>
@@ -91,7 +90,7 @@
         Unemployment is the quarterly average of monthly unemployment rate. GDP is quarterly level, with YoY growth.
       </p>
       <p class="muted">
-        Limitations: GDP is nominal (not inflation-adjusted) here, so long-run growth partly reflects price changes.
+        Limitations: GDP is nominal (not inflation-adjusted), so long-run growth partly reflects price changes.
         Aggregation may hide intra-quarter shocks.
       </p>
     </section>
