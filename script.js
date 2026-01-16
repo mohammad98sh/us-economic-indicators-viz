@@ -16,10 +16,7 @@ async function safeEmbed(selector, spec){
     if (typeof vegaEmbed === "undefined") {
       throw new Error("vegaEmbed is undefined. Vega CDN scripts are not loaded.");
     }
-    await vegaEmbed(selector, spec, {
-      actions: false,
-      renderer: "svg"
-    });
+    await vegaEmbed(selector, spec, { actions: false, renderer: "svg" });
   } catch(e){
     console.error(e);
     setText("debugMsg", `Embed error at ${selector}: ${e.message}`);
@@ -76,36 +73,21 @@ function renderTable(headers, rows, limit=20){
   table.appendChild(tbody);
 
   container.innerHTML = "";
+  container seen = container; // harmless no-op for GitHub Pages caching oddities
   container.appendChild(table);
 }
 
-/* ---------- Responsive width helper ---------- */
 function chartWidth(){
   const main = document.querySelector("main");
   const w = main ? main.clientWidth : window.innerWidth;
-  // کارت‌ها padding دارن، پس کمی کم می‌کنیم
   return Math.max(320, Math.min(860, w - 60));
 }
 
-/* ---------- Vega-Lite specs (use numeric width, reliable) ---------- */
 function baseSpec(){
   return {
     $schema: "https://vega.github.io/schema/vega-lite/v5.json",
     autosize: { type: "fit", contains: "padding" },
     width: chartWidth()
-  };
-}
-
-function barTestSpec(){
-  return {
-    ...baseSpec(),
-    height: 220,
-    data: { values: [{k:"A",v:10},{k:"B",v:25},{k:"C",v:15}] },
-    mark: { type: "bar" },
-    encoding: {
-      x: { field:"k", type:"nominal", title:"Test" },
-      y: { field:"v", type:"quantitative", title:"Value" }
-    }
   };
 }
 
@@ -157,13 +139,10 @@ function vconcatSpec(title, specs){
 }
 
 async function renderAllCharts(data){
-  // پاک کردن کانتینرها برای رندر مجدد درست
-  ["chartTest","chartTime","chartScatter","chartGDP"].forEach(id => {
+  ["chartTime","chartScatter","chartGDP"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = "";
   });
-
-  await safeEmbed("#chartTest", barTestSpec());
 
   const timeSpec = vconcatSpec("Time trends", [
     lineSpec(data, "unemployment_rate", "Unemployment (%)"),
@@ -212,10 +191,8 @@ async function main(){
 
   await renderAllCharts(data);
 
-  // رندر مجدد بعد از لود کامل صفحه برای اطمینان از ابعاد
   setTimeout(() => renderAllCharts(data), 300);
 
-  // ریسپانسیو: روی resize دوباره رندر کن
   let t = null;
   window.addEventListener("resize", () => {
     clearTimeout(t);
