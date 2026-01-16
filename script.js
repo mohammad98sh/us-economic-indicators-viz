@@ -73,10 +73,10 @@ function renderTable(headers, rows, limit=20){
   table.appendChild(tbody);
 
   container.innerHTML = "";
+  container seen = container; // harmless no-op for GitHub Pages caching oddities
   container.appendChild(table);
 }
 
-/* ---------- Responsive width helper ---------- */
 function chartWidth(){
   const main = document.querySelector("main");
   const w = main ? main.clientWidth : window.innerWidth;
