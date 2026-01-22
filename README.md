@@ -14,11 +14,7 @@ This project explores quarterly dynamics (1975Q1 → 2024Q1) across:
 
 ## Live demo (GitHub Pages)
 
-After enabling GitHub Pages, your site will be available here:
 
-- `https://<username>.github.io/<repo>/`
-
-Example:
 - `https://mohammad98sh.github.io/us-economic-indicators-viz/`
 
 ---
